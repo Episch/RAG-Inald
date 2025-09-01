@@ -7,6 +7,7 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 
 class TikaConnector
 {
+    private string $tikaBaseUrl;
     private HttpClientService $httpClient;
 
     public function __construct(HttpClientService $httpClient)

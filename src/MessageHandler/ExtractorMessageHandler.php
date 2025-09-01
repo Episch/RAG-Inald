@@ -2,7 +2,6 @@
 namespace App\MessageHandler;
 
 use App\Message\ExtractorMessage;
-use App\Service\Connector\OllamaConnector;
 use App\Service\Connector\TikaConnector;
 use App\Service\PromptRenderer;
 use Symfony\Component\Finder\Finder;
@@ -13,15 +12,13 @@ class ExtractorMessageHandler
     private Finder $finder;
 
     private TikaConnector $extractorConnector;
-    private OllamaConnector $ollamaConnector;
 
     private string $promptsPath;
 
-    public function __construct(Finder $finder, TikaConnector $extractorConnector, OllamaConnector $ollamaConnector, string $promptsPath)
+    public function __construct(Finder $finder, TikaConnector $extractorConnector, string $promptsPath)
     {
         $this->finder = $finder;
         $this->extractorConnector = $extractorConnector;
-        $this->ollamaConnector = $ollamaConnector;
         $this->promptsPath = $promptsPath;
     }
 
@@ -48,22 +45,20 @@ class ExtractorMessageHandler
         // extract
         $content = $this->extractorConnector->analyzeDocument($realPath);
         // reduce text noize
-        $extractContent = $this->extractorConnector->parseOptimization($content->getContent());
+        $extractContent = $this->extractorConnector->parseOptimization($content?->getContent() ?: null);
 
-        //
-        var_export(strlen($extractContent));
-
-        /*
-        //throw new \RuntimeException($extractContent);
         // prepare prompt
         $config = Yaml::parseFile($this->promptsPath);
-
         $template = $config['graph_mapping']['template'];
         $prompt = new PromptRenderer($template);
         $fullPrompt = $prompt->render(['tika_json' => $extractContent]);
 
+        var_export($fullPrompt);
+
+
         //throw new \Exception($fullPrompt); // TODO work on chunking etc.
 
+        /*
         // send prompt to lmm
         $processedDocumentData = $this->ollamaConnector->promptForCategorization($fullPrompt);
 
