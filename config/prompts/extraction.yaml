@@ -1,0 +1,49 @@
+graph_mapping:
+    template: |
+        Du bist ein Graph-Mapping-Assistent für Neo4j.
+        Gegeben ist ein Dokument JSON von Apache Tika:
+
+        {{tika_json}}
+
+        Dokumenttypen: Projekte, Pflichtenhefte, Projektbeschreibungen, E-Mails, Protokolle, Verträge / Beauftragungen.
+
+        Ziel: Erzeuge Nodes und Relationships für Neo4j nach folgendem Schema:
+
+        Nodes:
+        - Organization: name, address?, extra
+        - Project: name, description?, startDate?, endDate?, extra
+        - Requirement: title, description?, priority?, extra
+        - Contract: contractNumber?, date?, description?, extra
+        - Email: subject?, sender?, recipient?, date?, body?, extra
+        - Meeting: date?, participants?, topic?, extra
+
+        Relationships:
+        - (:Organization)-[:HAS_PROJECT]->(:Project)
+        - (:Project)-[:HAS_REQUIREMENT]->(:Requirement)
+        - (:Organization)-[:SENT]->(:Email)
+        - (:Organization)-[:SIGNED_CONTRACT]->(:Contract)
+        - (:Project)-[:RELATED_TO_CONTRACT]->(:Contract)
+        - (:Meeting)-[:PARTICIPATED_BY]->(:Organization)
+        - (:Requirement)-[:MENTIONS_CONTRACT]->(:Contract) [optional]
+        - (:Email)-[:RELATED_TO_PROJECT]->(:Project) [optional]
+
+        Regeln:
+        - Extrahiere Entities aus Metadata und unstrukturiertem Text.
+        - Wenn Metadata fehlt, speichere sie als `extra` Property.
+        - Nutze eindeutige Node-IDs für Beziehungen.
+        - Gib JSON zurück in folgendem Format:
+
+        {
+          "nodes": [
+            {"id": "org_1", "label": "Organization", "properties": {"name": "...", "extra": {...}}},
+            {"id": "proj_1", "label": "Project", "properties": {"name": "...", "extra": {...}}},
+            ...
+          ],
+          "relationships": [
+            {"from": "org_1", "to": "proj_1", "type": "HAS_PROJECT"},
+            {"from": "proj_1", "to": "req_1", "type": "HAS_REQUIREMENT"},
+            ...
+          ]
+        }
+
+        Optional: Füge Confidence-Level hinzu, wenn Beziehungen nicht eindeutig sind.

@@ -1,0 +1,60 @@
+api_platform:
+    title: 'RAG-Inald'
+    description: '<3'
+    version: '%env(VERSION)%'
+    # Good defaults for REST APIs
+    defaults:
+        stateless: true
+        cache_headers:
+            vary: [ 'Content-Type', 'Authorization', 'Origin' ]
+        extra_properties:
+            standard_put: true
+        pagination_client_enabled: true
+        pagination_client_items_per_page: true
+        pagination_maximum_items_per_page: 100
+        normalization_context:
+            enable_max_depth: true
+            skip_null_values: true
+
+    collection:
+        pagination:
+            page_parameter_name: page
+            enabled_parameter_name: pagination
+            items_per_page_parameter_name: itemsPerPage
+
+    mapping:
+        paths:
+            - '%kernel.project_dir%/src/Entity'
+            - '%kernel.project_dir%/src/Dto'
+
+    swagger:
+    #    api_keys:
+    #        access_token:
+    #            name: Authorization
+    #            type: header
+        swagger_ui_extra_configuration:
+            docExpansion: none
+
+    enable_re_doc: false
+
+    openapi:
+        # The contact information for the exposed API.
+        contact:
+            # The identifying name of the contact person/organization.
+            name: Mario Rubio-Calvo & David Nagelschmidt
+            # The URL pointing to the contact information. MUST be in the format of a URL.
+            url: https://Raginald.io
+            # The email address of the contact person/organization. MUST be in the format of an email address.
+            email: info@raginald.io
+        # A URL to the Terms of Service for the API. MUST be in the format of a URL.
+        termsOfService: https://raginald.io/impressum
+        # The license information for the exposed API.
+
+    show_webby: false
+
+when@prod:
+    api_platform:
+        enable_swagger: false
+        enable_swagger_ui: false
+        enable_docs: false
+        enable_re_doc: false
