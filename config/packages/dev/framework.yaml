@@ -1,0 +1,6 @@
+# Development-specific framework configuration
+framework:
+    # Suppress PropertyInfo deprecation warnings in development
+    property_info:
+        enabled: true
+    # Additional dev configuration can go here

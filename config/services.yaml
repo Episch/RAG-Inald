@@ -5,6 +5,7 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     default_version: '1.0.0'
+    app.document_storage_path: '%kernel.project_dir%/public/storage'
 
 services:
     # default configuration for services in *this* file
@@ -33,10 +34,12 @@ services:
             $serializer: '@serializer'
             $queueStats: '@App\Service\QueueStatsService'
     App\Controller\ExtractionController:
-        autowire: true
-        autoconfigure: true
         public: true
-        tags: ['controller.service_arguments']
+        arguments:
+            $bus: '@messenger.default_bus'
+            $queueStats: '@App\Service\QueueStatsService'
+            $logger: '@logger'
+            $serializer: '@serializer'
 
     App\Controller\StatusController:
         autowire: true
@@ -54,6 +57,7 @@ services:
     App\MessageHandler\ExtractorMessageHandler:
         arguments:
             $promptsPath: '%kernel.project_dir%/config/prompts/extraction.yaml'
+            $documentStoragePath: '%app.document_storage_path%'
         tags: ['messenger.message_handler']
         
     App\MessageHandler\LlmMessageHandler:

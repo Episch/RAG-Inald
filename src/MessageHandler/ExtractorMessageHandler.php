@@ -14,24 +14,29 @@ class ExtractorMessageHandler
     private TikaConnector $extractorConnector;
     private LlmConnector $llmConnector;
     private string $promptsPath;
+    private string $documentStoragePath;
 
     public function __construct(
         Finder $finder, 
         TikaConnector $extractorConnector, 
         LlmConnector $llmConnector,
-        string $promptsPath
+        string $promptsPath,
+        string $documentStoragePath
     ) {
         $this->finder = $finder;
         $this->extractorConnector = $extractorConnector;
         $this->llmConnector = $llmConnector;
         $this->promptsPath = $promptsPath;
+        $this->documentStoragePath = rtrim($documentStoragePath, '/') . '/';
     }
 
     public function __invoke(ExtractorMessage $message)
     {
         $startTime = microtime(true);
-        $secureBasePath = __DIR__ . '/../../public/storage/'; // TODO: remove it with config list of folders
         $path = $message->path;
+        
+        // Use configured storage path instead of hardcoded path
+        $secureBasePath = $this->documentStoragePath;
 
         if (!is_dir($secureBasePath . $path)) {
             throw new \RuntimeException('Path does not exist: ' . $secureBasePath . $path);

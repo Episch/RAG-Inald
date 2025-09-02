@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Dto\LlmPrompt;
+use App\Dto\QueueResponse;
 use App\Message\LlmMessage;
 use App\Service\Connector\LlmConnector;
 use App\Service\TokenChunker;
@@ -68,14 +69,19 @@ class LlmController
         $this->queueStats->incrementQueueCounter();
         $queueCount = $this->queueStats->getQueueCounterValue();
         
-        return new JsonResponse([
-            'status' => 'queued',
-            'request_id' => $requestId,
-            'model' => $data->getModel(),
-            'queue_count' => $queueCount,
-            'estimated_processing_time' => $this->estimateProcessingTime($data),
-            'result_available_at' => '/api/llm/result/' . $requestId, // Future endpoint for results
-        ], 202);
+        // Calculate actual token count instead of string length using the specified model
+        $tokenCount = $this->tokenChunker->countTokens($data->getPrompt(), $data->getModel());
+        
+        // Create standardized queue response using DTO
+        $response = QueueResponse::createLlmResponse(
+            requestId: $requestId,
+            model: $data->getModel(),
+            promptLength: $tokenCount,
+            queueCount: $queueCount,
+            estimatedTime: $this->estimateProcessingTime($data, $tokenCount)
+        );
+
+        return new JsonResponse($response, 202);
     }
 
     private function handleSyncRequest(LlmPrompt $data, string $requestId): JsonResponse
@@ -151,19 +157,21 @@ class LlmController
         }
     }
 
-    private function estimateProcessingTime(LlmPrompt $data): string
+    private function estimateProcessingTime(LlmPrompt $data, int $tokenCount): string
     {
-        // Rough estimation based on prompt length and model
-        $promptLength = strlen($data->getPrompt());
-        $baseTime = 10; // base seconds
+        // More accurate estimation based on actual token count
+        $baseTime = 5; // base seconds
         
-        // Add time based on prompt length
-        $additionalTime = intval($promptLength / 1000) * 5;
+        // Token-based complexity (more accurate than string length)
+        $tokenComplexity = intval($tokenCount / 100); // ~100 tokens per second processing
         
-        // Add time based on max tokens
-        $tokenTime = intval($data->getMaxTokens() / 500) * 10;
+        // Model-based multiplier
+        $modelMultiplier = 1.0;
+        if (str_contains(strtolower($data->getModel()), 'large') || str_contains(strtolower($data->getModel()), '70b')) {
+            $modelMultiplier = 2.0;
+        }
         
-        $totalSeconds = $baseTime + $additionalTime + $tokenTime;
+        $totalSeconds = intval(($baseTime + $tokenComplexity) * $modelMultiplier);
         
         if ($totalSeconds < 60) {
             return "{$totalSeconds} seconds";

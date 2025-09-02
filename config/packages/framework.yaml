@@ -5,6 +5,10 @@ framework:
     # Note that the session will be started ONLY if you read or write from it.
     session: true
 
+    # PropertyInfo configuration to reduce deprecation warnings
+    property_info:
+        enabled: true
+
     #esi: true
     #fragments: true
 

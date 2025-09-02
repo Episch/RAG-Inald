@@ -232,4 +232,94 @@ class TokenChunkerTest extends TestCase
             $this->assertNotEmpty(trim($chunk));
         }
     }
+
+    /**
+     * 🟢 POSITIVE: Test token counting functionality
+     */
+    public function testCountTokens(): void
+    {
+        $tokenChunker = new TokenChunker();
+        
+        // Test with simple text
+        $simpleText = "Hello world";
+        $tokenCount = $tokenChunker->countTokens($simpleText);
+        $this->assertGreaterThan(0, $tokenCount);
+        $this->assertIsInt($tokenCount);
+        
+        // Test with longer text should have more tokens
+        $longerText = "This is a much longer text that should result in significantly more tokens when processed by the tiktoken encoder.";
+        $longerTokenCount = $tokenChunker->countTokens($longerText);
+        $this->assertGreaterThan($tokenCount, $longerTokenCount);
+        
+        // Test with empty string
+        $emptyTokenCount = $tokenChunker->countTokens("");
+        $this->assertEquals(0, $emptyTokenCount);
+    }
+
+    /**
+     * 🟢 POSITIVE: Test token counting with different models
+     */
+    public function testCountTokensWithDifferentModels(): void
+    {
+        $tokenChunker = new TokenChunker();
+        $text = "This is a test text for token counting.";
+        
+        // Test with default model
+        $defaultCount = $tokenChunker->countTokens($text);
+        $this->assertGreaterThan(0, $defaultCount);
+        
+        // Test with explicit GPT model (should work the same for most models)
+        $gpt35Count = $tokenChunker->countTokens($text, 'gpt-3.5-turbo');
+        $this->assertEquals($defaultCount, $gpt35Count);
+    }
+
+    /**
+     * 🟢 POSITIVE: Test token counting with Ollama models (model mapping)
+     */
+    public function testCountTokensWithOllamaModels(): void
+    {
+        $tokenChunker = new TokenChunker();
+        $text = "This is a test text for Ollama model token counting.";
+        
+        // Test with llama models (should fallback to gpt-3.5-turbo)
+        $llamaCount = $tokenChunker->countTokens($text, 'llama3.2');
+        $this->assertGreaterThan(0, $llamaCount);
+        $this->assertIsInt($llamaCount);
+        
+        // Test with other Ollama models
+        $mistralCount = $tokenChunker->countTokens($text, 'mistral');
+        $this->assertGreaterThan(0, $mistralCount);
+        
+        $phiCount = $tokenChunker->countTokens($text, 'phi-3');
+        $this->assertGreaterThan(0, $phiCount);
+        
+        // All should produce reasonable token counts
+        $this->assertGreaterThan(3, $llamaCount); // Should be more than just a few tokens
+        $this->assertGreaterThan(3, $mistralCount);
+        $this->assertGreaterThan(3, $phiCount);
+    }
+
+    /**
+     * 🟢 POSITIVE: Test that model mapping produces consistent results
+     */
+    public function testModelMappingConsistency(): void
+    {
+        $tokenChunker = new TokenChunker();
+        $text = "Testing model mapping consistency across different Ollama models.";
+        
+        // All these Ollama models should map to gpt-3.5-turbo and give same result
+        $llama32Count = $tokenChunker->countTokens($text, 'llama3.2');
+        $llama2Count = $tokenChunker->countTokens($text, 'llama2');
+        $codelamaCount = $tokenChunker->countTokens($text, 'codellama');
+        $mistralCount = $tokenChunker->countTokens($text, 'mistral');
+        
+        // Should all be equal since they map to same tiktoken model
+        $this->assertEquals($llama32Count, $llama2Count);
+        $this->assertEquals($llama32Count, $codelamaCount);
+        $this->assertEquals($llama32Count, $mistralCount);
+        
+        // Should match direct gpt-3.5-turbo count
+        $gpt35Count = $tokenChunker->countTokens($text, 'gpt-3.5-turbo');
+        $this->assertEquals($llama32Count, $gpt35Count);
+    }
 }

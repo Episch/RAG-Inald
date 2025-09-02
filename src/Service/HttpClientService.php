@@ -29,10 +29,36 @@ class HttpClientService
         return $this->client->request('PUT', $url, $options);
     }
 
+    public function delete(string $url, array $options = []): ResponseInterface
+    {
+        return $this->client->request('DELETE', $url, $options);
+    }
+
+    public function patch(string $url, array $options = []): ResponseInterface
+    {
+        return $this->client->request('PATCH', $url, $options);
+    }
+
+    public function head(string $url, array $options = []): ResponseInterface
+    {
+        return $this->client->request('HEAD', $url, $options);
+    }
+
+    public function options(string $url, array $options = []): ResponseInterface
+    {
+        return $this->client->request('OPTIONS', $url, $options);
+    }
+
     public function request(string $method, string $url, array $options = []): ResponseInterface
     {
         return $this->client->request($method, $url, $options);
     }
 
-    // TODO: delete etc.
+    /**
+     * Get supported HTTP methods
+     */
+    public function getSupportedMethods(): array
+    {
+        return ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
+    }
 }

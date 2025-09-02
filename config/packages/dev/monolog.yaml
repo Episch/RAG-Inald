@@ -1,0 +1,20 @@
+monolog:
+    handlers:
+        main:
+            type: fingers_crossed
+            action_level: error
+            handler: nested
+        console:
+            type: console
+            process_psr_3_messages: false
+            channels: [ "!event", "!deprecation" ]  # Exclude deprecation from console
+        nested:
+            type: stream
+            path: "%kernel.logs_dir%/%kernel.environment%.log"
+            level: debug
+        # Separate handler for deprecations - log to separate file
+        deprecation:
+            type: stream
+            path: "%kernel.logs_dir%/deprecation.log"
+            level: info
+            channels: ["deprecation"]

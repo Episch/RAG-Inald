@@ -76,7 +76,150 @@ class Neo4JConnector implements ConnectorInterface
 
     public function generateIndex($documentObject): ResponseInterface
     {
-        // TODO: Implement Neo4J index generation
-        throw new \BadMethodCallException('Neo4J index generation not yet implemented');
+        if (!is_array($documentObject)) {
+            throw new \InvalidArgumentException('Document object must be an array');
+        }
+
+        // Prepare Cypher query to create nodes and relationships
+        $cypherQuery = $this->buildCypherQuery($documentObject);
+        
+        $payload = [
+            'statements' => [
+                [
+                    'statement' => $cypherQuery,
+                    'parameters' => $this->extractParameters($documentObject)
+                ]
+            ]
+        ];
+
+        try {
+            return $this->httpClient->post($this->neo4jBaseUrl . '/db/data/transaction/commit', [
+                'json' => $payload,
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ],
+                'timeout' => 30
+            ]);
+        } catch (TransportExceptionInterface $e) {
+            throw new \RuntimeException("Failed to create Neo4J index: " . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Build Cypher query from document object
+     */
+    private function buildCypherQuery(array $documentObject): string
+    {
+        $queries = [];
+
+        // Create document node
+        if (isset($documentObject['document'])) {
+            $queries[] = "CREATE (doc:Document {id: \$doc_id, title: \$doc_title, content: \$doc_content, created_at: datetime()})";
+        }
+
+        // Create entity nodes and relationships
+        if (isset($documentObject['entities'])) {
+            foreach ($documentObject['entities'] as $type => $entities) {
+                switch ($type) {
+                    case 'persons':
+                        $queries[] = "WITH doc UNWIND \$persons AS person 
+                                     CREATE (p:Person {name: person.name, role: person.role}) 
+                                     CREATE (doc)-[:MENTIONS]->(p)";
+                        break;
+                    case 'organizations':
+                        $queries[] = "WITH doc UNWIND \$organizations AS org 
+                                     CREATE (o:Organization {name: org.name, type: org.type}) 
+                                     CREATE (doc)-[:MENTIONS]->(o)";
+                        break;
+                    case 'projects':
+                        $queries[] = "WITH doc UNWIND \$projects AS project 
+                                     CREATE (pr:Project {name: project.name, description: project.description}) 
+                                     CREATE (doc)-[:DESCRIBES]->(pr)";
+                        break;
+                    case 'requirements':
+                        $queries[] = "WITH doc UNWIND \$requirements AS req 
+                                     CREATE (r:Requirement {text: req.text, priority: req.priority}) 
+                                     CREATE (doc)-[:CONTAINS]->(r)";
+                        break;
+                }
+            }
+        }
+
+        return implode(' ', $queries);
+    }
+
+    /**
+     * Extract parameters from document object for Cypher query
+     */
+    private function extractParameters(array $documentObject): array
+    {
+        $parameters = [];
+
+        // Document parameters
+        if (isset($documentObject['document'])) {
+            $doc = $documentObject['document'];
+            $parameters['doc_id'] = $doc['id'] ?? uniqid('doc_');
+            $parameters['doc_title'] = $doc['title'] ?? 'Untitled';
+            $parameters['doc_content'] = substr($doc['content'] ?? '', 0, 1000); // Limit content
+        }
+
+        // Entity parameters
+        if (isset($documentObject['entities'])) {
+            foreach ($documentObject['entities'] as $type => $entities) {
+                $parameters[$type] = array_map(function ($entity) {
+                    return [
+                        'name' => $entity['name'] ?? '',
+                        'type' => $entity['type'] ?? '',
+                        'role' => $entity['role'] ?? '',
+                        'description' => $entity['description'] ?? '',
+                        'text' => $entity['text'] ?? '',
+                        'priority' => $entity['priority'] ?? 'medium'
+                    ];
+                }, $entities);
+            }
+        }
+
+        return $parameters;
+    }
+
+    /**
+     * Search nodes and relationships in Neo4j
+     */
+    public function searchIndex(string $query, int $limit = 10): ResponseInterface
+    {
+        $cypherQuery = "
+            MATCH (n) 
+            WHERE toLower(toString(n.name)) CONTAINS toLower(\$query) 
+               OR toLower(toString(n.title)) CONTAINS toLower(\$query)
+               OR toLower(toString(n.text)) CONTAINS toLower(\$query)
+            RETURN n, labels(n) as types 
+            LIMIT \$limit
+        ";
+
+        $payload = [
+            'statements' => [
+                [
+                    'statement' => $cypherQuery,
+                    'parameters' => [
+                        'query' => $query,
+                        'limit' => $limit
+                    ]
+                ]
+            ]
+        ];
+
+        try {
+            return $this->httpClient->post($this->neo4jBaseUrl . '/db/data/transaction/commit', [
+                'json' => $payload,
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ],
+                'timeout' => 15
+            ]);
+        } catch (TransportExceptionInterface $e) {
+            throw new \RuntimeException("Failed to search Neo4J index: " . $e->getMessage(), 0, $e);
+        }
     }
 }
