@@ -1,0 +1,299 @@
+{
+  "examples": {
+    "1. Simple Person Entity": {
+      "entityType": "Person",
+      "entityData": {
+        "id": "person_john_doe_123",
+        "name": "John Doe",
+        "email": "john.doe@company.com",
+        "department": "Engineering",
+        "position": "Senior Developer",
+        "skills": ["PHP", "Symfony", "Neo4j", "JavaScript"],
+        "hire_date": "2023-03-15",
+        "active": true
+      },
+      "operation": "merge"
+    },
+
+    "2. Person with Relationships": {
+      "entityType": "Person",
+      "entityData": {
+        "id": "person_jane_smith_456",
+        "name": "Jane Smith",
+        "email": "jane.smith@company.com",
+        "role": "Engineering Manager",
+        "years_experience": 8
+      },
+      "relationships": [
+        {
+          "type": "WORKS_FOR",
+          "target": {
+            "id": "company_techcorp_789",
+            "_label": "Company"
+          },
+          "properties": {
+            "since": "2022-01-01",
+            "position": "Engineering Manager",
+            "salary_band": "L6"
+          }
+        },
+        {
+          "type": "MANAGES",
+          "target": {
+            "id": "person_john_doe_123",
+            "_label": "Person"
+          },
+          "properties": {
+            "since": "2023-06-01",
+            "direct_report": true
+          }
+        }
+      ],
+      "indexes": [
+        {"property": "email", "type": "btree"},
+        {"property": "name", "type": "text"}
+      ],
+      "operation": "merge"
+    },
+
+    "3. Document Entity": {
+      "entityType": "Document",
+      "entityData": {
+        "uuid": "doc_research_paper_2024_001",
+        "title": "Advanced Graph Database Optimization Techniques",
+        "abstract": "This paper explores novel approaches to optimizing graph database queries in distributed systems.",
+        "authors": ["Dr. Alice Johnson", "Prof. Bob Wilson"],
+        "publication_date": "2024-01-15",
+        "doi": "10.1000/xyz.2024.001",
+        "keywords": ["graph databases", "optimization", "distributed systems", "neo4j"],
+        "page_count": 24,
+        "status": "published"
+      },
+      "relationships": [
+        {
+          "type": "AUTHORED_BY",
+          "target": {
+            "id": "author_alice_johnson",
+            "_label": "Author"
+          },
+          "properties": {
+            "order": 1,
+            "role": "lead_author",
+            "contribution_percentage": 60
+          }
+        },
+        {
+          "type": "AUTHORED_BY", 
+          "target": {
+            "id": "author_bob_wilson",
+            "_label": "Author"
+          },
+          "properties": {
+            "order": 2,
+            "role": "co_author",
+            "contribution_percentage": 40
+          }
+        },
+        {
+          "type": "PUBLISHED_IN",
+          "target": {
+            "id": "journal_graph_computing",
+            "_label": "Journal"
+          },
+          "properties": {
+            "volume": "15",
+            "issue": "1",
+            "pages": "1-24"
+          }
+        }
+      ],
+      "indexes": [
+        {"property": "title", "type": "text"},
+        {"property": "doi", "type": "btree"},
+        {"property": "publication_date", "type": "range"}
+      ],
+      "metadata": {
+        "source": "academic_database",
+        "import_batch": "batch_2024_001",
+        "confidence_score": 0.98
+      },
+      "operation": "create"
+    },
+
+    "4. Company/Organization Entity": {
+      "entityType": "Company",
+      "entityData": {
+        "id": "company_techcorp_789",
+        "name": "TechCorp Solutions",
+        "legal_name": "TechCorp Solutions Inc.",
+        "industry": "Software Development",
+        "founded": "2018-03-01",
+        "headquarters": "San Francisco, CA",
+        "employee_count": 250,
+        "website": "https://techcorp-solutions.com",
+        "stock_symbol": "TECH",
+        "revenue_2023": 50000000
+      },
+      "relationships": [
+        {
+          "type": "HAS_OFFICE",
+          "target": {
+            "id": "office_sf_main",
+            "_label": "Office"
+          },
+          "properties": {
+            "type": "headquarters",
+            "address": "123 Tech Street, San Francisco, CA 94102"
+          }
+        },
+        {
+          "type": "COMPETES_WITH",
+          "target": {
+            "id": "company_rival_corp",
+            "_label": "Company"
+          },
+          "properties": {
+            "market_overlap": "high",
+            "competitive_index": 0.85
+          }
+        }
+      ],
+      "indexes": [
+        {"property": "name", "type": "text"},
+        {"property": "stock_symbol", "type": "btree"}
+      ],
+      "operation": "merge"
+    },
+
+    "5. Project Entity with Complex Relationships": {
+      "entityType": "Project",
+      "entityData": {
+        "id": "project_rag_system_2024",
+        "name": "RAG Backend System",
+        "description": "Development of a Retrieval Augmented Generation backend system using Symfony, Neo4j, and Ollama",
+        "status": "active",
+        "start_date": "2024-01-01",
+        "expected_end_date": "2024-06-30",
+        "budget": 150000,
+        "priority": "high",
+        "tags": ["rag", "ai", "backend", "symfony", "neo4j"]
+      },
+      "relationships": [
+        {
+          "type": "MANAGED_BY",
+          "target": {
+            "id": "person_jane_smith_456",
+            "_label": "Person"
+          },
+          "properties": {
+            "role": "project_manager",
+            "allocation_percentage": 100
+          }
+        },
+        {
+          "type": "WORKED_ON_BY",
+          "target": {
+            "id": "person_john_doe_123",
+            "_label": "Person"
+          },
+          "properties": {
+            "role": "lead_developer",
+            "allocation_percentage": 80,
+            "start_date": "2024-01-15"
+          }
+        },
+        {
+          "type": "USES_TECHNOLOGY",
+          "target": {
+            "id": "tech_symfony",
+            "_label": "Technology"
+          },
+          "properties": {
+            "version": "7.3",
+            "purpose": "main_framework"
+          }
+        },
+        {
+          "type": "USES_TECHNOLOGY",
+          "target": {
+            "id": "tech_neo4j",
+            "_label": "Technology"
+          },
+          "properties": {
+            "version": "5.x",
+            "purpose": "graph_database"
+          }
+        }
+      ],
+      "indexes": [
+        {"property": "name", "type": "text"},
+        {"property": "status", "type": "btree"},
+        {"property": "start_date", "type": "range"}
+      ],
+      "metadata": {
+        "created_by": "system_admin",
+        "last_updated": "2024-01-16T10:30:00Z"
+      },
+      "operation": "merge"
+    },
+
+    "6. Simple Create Operation": {
+      "entityType": "Department",
+      "entityData": {
+        "id": "dept_engineering_001",
+        "name": "Engineering",
+        "budget": 2000000,
+        "head_count": 45,
+        "established": "2018-03-01"
+      },
+      "operation": "create"
+    },
+
+    "7. Update Operation": {
+      "entityType": "Person",
+      "entityData": {
+        "id": "person_john_doe_123",
+        "position": "Lead Senior Developer",
+        "salary_band": "L5",
+        "last_promotion": "2024-01-01"
+      },
+      "operation": "update"
+    },
+
+    "8. Delete Operation": {
+      "entityType": "Person",
+      "entityData": {
+        "id": "person_to_delete_999"
+      },
+      "operation": "delete"
+    }
+  },
+
+  "quick_test_examples": {
+    "minimal_person": {
+      "entityType": "Person",
+      "entityData": {
+        "id": "test_person_001",
+        "name": "Test User"
+      }
+    },
+    
+    "person_with_relationship": {
+      "entityType": "Person",
+      "entityData": {
+        "id": "test_person_002", 
+        "name": "Test Manager",
+        "role": "Manager"
+      },
+      "relationships": [
+        {
+          "type": "WORKS_FOR",
+          "target": {
+            "id": "test_company_001",
+            "_label": "Company"
+          }
+        }
+      ]
+    }
+  }
+}

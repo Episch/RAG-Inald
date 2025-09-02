@@ -12,6 +12,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
         new Get(
             uriTemplate: '/status',
             controller: StatusController::class,
+            description: 'Check the health and connectivity status of all backend services including Apache Tika (document extraction), Neo4j (graph database), and Ollama (LLM service).',
             normalizationContext: ['groups' => ['read']],
             denormalizationContext: ['groups' => ['write']],
             input: Status::class

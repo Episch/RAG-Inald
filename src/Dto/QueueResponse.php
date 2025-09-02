@@ -107,6 +107,36 @@ class QueueResponse extends AbstractDto implements \JsonSerializable
     }
 
     /**
+     * Factory method for graph indexing responses
+     */
+    public static function createIndexingResponse(
+        string $requestId,
+        string $entityType,
+        string $operation,
+        int $entityCount,
+        ?int $queueCount = null,
+        string $estimatedTime = '10 seconds'
+    ): self {
+        return new self(
+            requestId: $requestId,
+            operationType: 'indexing',
+            requestData: [
+                'entity_type' => $entityType,
+                'operation' => $operation,
+                'entity_count' => $entityCount
+            ],
+            queueCount: $queueCount,
+            estimatedProcessingTime: $estimatedTime,
+            metadata: [
+                'pipeline' => 'Graph Indexing → Neo4j Storage',
+                'database' => 'Neo4j',
+                'async_processing' => true,
+                'supported_operations' => ['create', 'update', 'merge', 'delete']
+            ]
+        );
+    }
+
+    /**
      * Factory method for generic queue responses
      */
     public static function createGeneric(

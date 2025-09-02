@@ -13,7 +13,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Post(
             uriTemplate: '/extraction',
             controller: ExtractionController::class,
-            description: 'Extraction of file with help from apache TIKA.',
+            description: 'Submit documents for asynchronous extraction and processing using Apache Tika, followed by LLM categorization and graph storage.',
             normalizationContext: ['groups' => ['read']],
             denormalizationContext: ['groups' => ['write']],
             input: Extraction::class

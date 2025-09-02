@@ -15,7 +15,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Post(
             uriTemplate: '/llm/generate',
             controller: LlmController::class,
-            description: 'Generate text using LLM with tokenized prompt.',
+            description: 'Generate text responses using local LLM (Ollama) with customizable parameters including temperature, max tokens, and model selection. Supports both async and sync processing.',
             normalizationContext: ['groups' => ['read']],
             denormalizationContext: ['groups' => ['write']],
             input: LlmPrompt::class

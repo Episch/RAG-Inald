@@ -150,6 +150,46 @@ class Neo4JConnector implements ConnectorInterface
     }
 
     /**
+     * Execute a custom Cypher query with parameters
+     */
+    public function executeCypherQuery(string $cypher, array $parameters = []): array
+    {
+        $url = $this->neo4jUrl . '/db/data/cypher';
+        
+        $requestData = [
+            'query' => $cypher,
+            'params' => $parameters
+        ];
+
+        try {
+            $response = $this->httpClient->post($url, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json'
+                ],
+                'json' => $requestData,
+                'timeout' => 30
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $responseData = json_decode($response->getContent(), true);
+
+            if ($statusCode !== 200) {
+                throw new \RuntimeException("Neo4j query failed with status {$statusCode}: " . ($responseData['message'] ?? 'Unknown error'));
+            }
+
+            return [
+                'data' => $responseData['data'] ?? [],
+                'columns' => $responseData['columns'] ?? [],
+                'stats' => $responseData['stats'] ?? null
+            ];
+
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to execute Neo4j query: " . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
      * Extract parameters from document object for Cypher query
      */
     private function extractParameters(array $documentObject): array

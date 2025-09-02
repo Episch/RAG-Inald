@@ -7,6 +7,7 @@ framework:
         routing:
             'App\Message\ExtractorMessage': async
             'App\Message\LlmMessage': async
+            'App\Message\IndexingMessage': async
 
 # when@test:
 #    framework:

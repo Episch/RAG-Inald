@@ -41,6 +41,14 @@ services:
             $logger: '@logger'
             $serializer: '@serializer'
 
+    App\Controller\IndexingController:
+        public: true
+        arguments:
+            $bus: '@messenger.default_bus'
+            $queueStats: '@App\Service\QueueStatsService'
+            $logger: '@logger'
+            $serializer: '@serializer'
+
     App\Controller\StatusController:
         autowire: true
         autoconfigure: true
@@ -64,6 +72,13 @@ services:
         arguments:
             $outputPath: '%kernel.project_dir%/var/llm_output/'
             $queueStats: '@App\Service\QueueStatsService'
+        tags: ['messenger.message_handler']
+        
+    App\MessageHandler\IndexingMessageHandler:
+        arguments:
+            $neo4jConnector: '@App\Service\Connector\Neo4JConnector'
+            $queueStats: '@App\Service\QueueStatsService'
+            $logger: '@logger'
         tags: ['messenger.message_handler']
         
     # Debug and Testing services
