@@ -19,8 +19,12 @@ class PromptRenderer
             if (is_array($value) || is_object($value)) {
                 $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             }
+            
+            // 🔧 Fix: Handle null values to avoid deprecation warning
+            $value = $value ?? '';
+            
             # {{tika_json}}
-            $rendered = str_replace('{{'.$key.'}}', $value, $rendered);
+            $rendered = str_replace('{{'.$key.'}}', (string)$value, $rendered);
         }
         return $rendered;
     }

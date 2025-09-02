@@ -29,5 +29,10 @@ class HttpClientService
         return $this->client->request('PUT', $url, $options);
     }
 
-    // TODO: put, delete etc.
+    public function request(string $method, string $url, array $options = []): ResponseInterface
+    {
+        return $this->client->request($method, $url, $options);
+    }
+
+    // TODO: delete etc.
 }

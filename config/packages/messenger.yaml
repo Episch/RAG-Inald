@@ -6,6 +6,7 @@ framework:
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
         routing:
             'App\Message\ExtractorMessage': async
+            'App\Message\LlmMessage': async
 
 # when@test:
 #    framework:

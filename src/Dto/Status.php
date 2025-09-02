@@ -21,7 +21,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
 class Status
 {
     #[Groups(['write', 'read'])]
-    public array $server;
+    public array $server = []; // 🔧 Initialize property to avoid undefined behavior
 
     public function getServer(): array
     {
