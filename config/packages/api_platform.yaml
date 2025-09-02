@@ -1,7 +1,7 @@
 api_platform:
-    title: 'RAG-Inald'
-    description: '<3'
-    version: '%env(VERSION)%'
+    title: 'RAG-Backend API'
+    description: 'Production-ready RAG (Retrieval Augmented Generation) Pipeline API for intelligent document processing and LLM-based categorization. Features include Apache Tika document extraction, Ollama LLM integration, Neo4j graph storage, and asynchronous processing via Symfony Messenger.'
+    version: '%env(default:default_version:API_VERSION)%'
     # Good defaults for REST APIs
     defaults:
         stateless: true
@@ -33,7 +33,15 @@ api_platform:
     #            name: Authorization
     #            type: header
         swagger_ui_extra_configuration:
-            docExpansion: none
+            docExpansion: 'list'
+            defaultModelsExpandDepth: 2
+            defaultModelExpandDepth: 3
+            displayRequestDuration: true
+            filter: true
+            tryItOutEnabled: true
+            persistAuthorization: true
+            showExtensions: true
+            showCommonExtensions: true
 
     enable_re_doc: false
 
@@ -43,12 +51,16 @@ api_platform:
             # The identifying name of the contact person/organization.
             name: Mario Rubio-Calvo & David Nagelschmidt
             # The URL pointing to the contact information. MUST be in the format of a URL.
-            url: https://Raginald.io
+            url: https://github.com/your-repo/rag-backend
             # The email address of the contact person/organization. MUST be in the format of an email address.
             email: info@raginald.io
         # A URL to the Terms of Service for the API. MUST be in the format of a URL.
-        termsOfService: https://raginald.io/impressum
+        termsOfService: https://raginald.io/terms
         # The license information for the exposed API.
+        license:
+            name: 'Proprietary'
+            url: 'https://raginald.io/license'
+
 
     show_webby: false
 
