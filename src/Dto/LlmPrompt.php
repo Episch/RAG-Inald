@@ -9,6 +9,9 @@ use App\Dto\Base\AbstractDto;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Generate text responses using local LLM (Ollama) with customizable parameters including temperature, max tokens, and model selection. Supports both async and sync processing.
+ */
 #[ApiResource(
     shortName: 'LLM',
     operations: [

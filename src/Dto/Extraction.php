@@ -7,6 +7,9 @@ use App\Controller\ExtractionController;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Submit documents for asynchronous extraction and processing using Apache Tika, followed by LLM categorization and graph storage.
+ */
 #[ApiResource(
     shortName: 'RAG',
     operations: [

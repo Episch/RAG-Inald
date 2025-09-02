@@ -9,8 +9,8 @@ use App\Dto\Base\AbstractDto;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 
-/**
- * Flexible DTO for indexing various entities/nodes into Neo4j
+/** 
+ * Iindexing various entities/nodes into Neo4j
  */
 #[ApiResource(
     shortName: 'GraphIndexing',

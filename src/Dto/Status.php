@@ -6,8 +6,11 @@ use ApiPlatform\Metadata\Get;
 use App\Controller\StatusController;
 use Symfony\Component\Serializer\Annotation\Groups;
 
+/**
+ * Check the health and connectivity status of all backend services including Apache Tika (document extraction), Neo4j (graph database), and Ollama (LLM service).
+ */
 #[ApiResource(
-    shortName: 'Server',
+    shortName: 'Monitoring',
     operations: [
         new Get(
             uriTemplate: '/status',

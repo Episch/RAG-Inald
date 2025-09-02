@@ -2,18 +2,31 @@
 
 namespace App\Controller;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
 use App\Service\Connector\LlmConnector;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\Routing\Annotation\Route;
 
+#[ApiResource(
+    shortName: 'Monitoring',
+    operations: [
+        new Get(
+            uriTemplate: '/admin/debug/ollama',
+            controller: DebugController::class,
+            description: 'Comprehensive Ollama LLM service diagnostics and troubleshooting information. Requires admin authentication.',
+            normalizationContext: ['groups' => ['admin:read']],
+            output: false,
+            security: "is_granted('ROLE_ADMIN')"
+        )
+    ]
+)]
 class DebugController
 {
     public function __construct(private LlmConnector $llmConnector)
     {
     }
 
-    #[Route('/debug/ollama', name: 'debug_ollama', methods: ['GET'])]
-    public function debugOllama(): JsonResponse
+    public function __invoke(): JsonResponse
     {
         try {
             // Check all endpoints

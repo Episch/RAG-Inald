@@ -88,6 +88,8 @@ services:
             
     App\Controller\DebugController:
         public: true
+        arguments:
+            $llmConnector: '@App\Service\Connector\LlmConnector'
         
     App\Controller\LlmTestController:
         public: true
@@ -120,11 +122,20 @@ services:
             $template: '' # Will be set dynamically
             $cacheManager: '@App\Service\CacheManager'
             
-    App\Controller\ConfigurationController:
+    # Admin Configuration Controllers
+    App\Controller\AdminConfigStatusController:
+        public: true
+        arguments:
+            $configManager: '@App\Service\ConfigurationManager'
+            
+    App\Controller\AdminConfigTestController:
         public: true
         arguments:
             $configManager: '@App\Service\ConfigurationManager'
             $connectorFactory: '@App\Service\Factory\ConnectorFactory'
+            
+    App\Controller\AdminConfigEnvController:
+        public: true
             
     # Queue Statistics Service
     App\Service\QueueStatsService:

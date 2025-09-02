@@ -26,12 +26,13 @@ api_platform:
         paths:
             - '%kernel.project_dir%/src/Entity'
             - '%kernel.project_dir%/src/Dto'
+            - '%kernel.project_dir%/src/Controller'
 
     swagger:
-    #    api_keys:
-    #        access_token:
-    #            name: Authorization
-    #            type: header
+        api_keys:
+            basicAuth:
+                name: Authorization
+                type: header
         swagger_ui_extra_configuration:
             docExpansion: 'list'
             defaultModelsExpandDepth: 2
