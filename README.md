@@ -16,7 +16,23 @@ Diese Anwendung implementiert eine vollständige **Retrieval Augmented Generatio
 
 ## 🚀 **Quick Start**
 
-### **1. Services starten**
+### 🐳 **Option 1: Docker (Empfohlen)**
+```bash
+# Alle Services als Container starten
+docker-compose up -d
+
+# LLM-Modelle installieren (einmalig)
+docker-compose --profile setup run --rm ollama-setup
+
+# API testen
+curl http://localhost:8000/api/status
+```
+
+**➡️ Vollständige Docker-Dokumentation:** [docker/README.md](docker/README.md)
+
+### ⚙️ **Option 2: Manuelle Installation**
+
+#### **1. Services starten**
 ```bash
 # Ollama LLM Service
 ollama serve
@@ -28,7 +44,7 @@ docker run -p 9998:9998 apache/tika
 docker run -p 7474:7474 -p 7687:7687 neo4j
 ```
 
-### **2. LLM-Modell installieren**
+#### **2. LLM-Modell installieren**
 ```bash
 # Empfohlenes Modell für RAG
 ollama pull llama3.2
@@ -37,7 +53,7 @@ ollama pull llama3.2
 ollama pull tinyllama
 ```
 
-### **3. Environment konfigurieren**
+#### **3. Environment konfigurieren**
 ```bash
 # .env.local erstellen
 DOCUMENT_EXTRACTOR_URL=http://localhost:9998
@@ -46,8 +62,11 @@ LMM_URL=http://localhost:11434
 MESSENGER_TRANSPORT_DSN=doctrine://default
 ```
 
-### **4. Dependencies & Setup**
+#### **4. Dependencies & Setup**
 ```bash
+# PHP-Extensions prüfen (automatisch via composer.json)
+php -m | grep -E "(xml|dom|curl|mbstring|json)"
+
 # Composer Dependencies
 composer install
 
@@ -332,6 +351,39 @@ services:
 - **Vertical**: Memory-Limits erhöhen
 - **Caching**: Redis für produktiven Cache-Layer
 - **Load Balancing**: Nginx für API-Endpunkte
+
+---
+
+## 🐳 **Deployment**
+
+### **Docker (Empfohlen)**
+```bash
+# Production mit Docker Compose
+docker-compose -f docker-compose.prod.yml up -d
+
+# Alle Services inklusive Web-Server
+docker-compose --profile nginx up -d
+```
+
+**Vorteile:**
+- ✅ Alle Abhängigkeiten inklusive (Redis, Neo4j, Tika, Ollama)
+- ✅ Isolation und Reproduzierbarkeit
+- ✅ Einfache Skalierung und Load Balancing
+- ✅ Automatische Service-Discovery
+
+### **Manuelle Deployment**
+```bash
+# Produktions-Dependencies
+composer install --no-dev --optimize-autoloader
+
+# Cache warmup
+php bin/console cache:warmup --env=prod
+
+# Service-Setup (siehe Docker-Setup als Referenz)
+systemctl start neo4j tika ollama redis
+```
+
+**➡️ Detaillierte Deployment-Anweisungen:** [docker/README.md](docker/README.md)
 
 ---
 

@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+README.md
+
+# Docker files
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# Environment files
+.env*
+!.env.test
+
+# Symfony
+/var/cache/
+/var/logs/
+/var/sessions/
+/var/llm_output/
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+/docs/
+*.md
+
+# Test files
+/tests/
+/phpunit.xml.dist
+/.phpunit.result.cache
+
+# Build artifacts
+.symfony.lock
+composer.lock

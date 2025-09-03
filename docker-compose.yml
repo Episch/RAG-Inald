@@ -1,0 +1,195 @@
+version: '3.8'
+
+services:
+  # PHP/Symfony Application
+  app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag_backend_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www/html
+      - ./public/storage:/var/www/html/public/storage
+      - ./var:/var/www/html/var
+    environment:
+      - APP_ENV=dev
+      - DATABASE_URL=mysql://root:password@db:3306/rag_backend?serverVersion=8.0
+      - REDIS_URL=redis://redis:6379
+      - NEO4J_RAG_DATABASE=bolt://neo4j:neo4j@neo4j:7687
+      - DOCUMENT_EXTRACTOR_URL=http://tika:9998
+      - LMM_URL=http://ollama:11434
+      - MESSENGER_TRANSPORT_DSN=redis://redis:6379/messages
+    depends_on:
+      - redis
+      - neo4j
+      - tika
+      - ollama
+      - db
+    networks:
+      - rag-network
+
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: rag_backend_db
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: rag_backend
+      MYSQL_USER: rag_user
+      MYSQL_PASSWORD: rag_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - rag-network
+
+  # Redis for Caching & Messaging
+  redis:
+    image: redis:7-alpine
+    container_name: rag_backend_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - rag-network
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5.25-enterprise
+    container_name: rag_backend_neo4j
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/neo4j
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_server_memory_heap_initial__size=512m
+      - NEO4J_server_memory_heap_max__size=2G
+      - NEO4J_server_memory_pagecache_size=1G
+      - NEO4J_server_config_strict__validation_enabled=false
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+      - neo4j_plugins:/plugins
+    networks:
+      - rag-network
+
+  # Apache Tika Server for Document Extraction
+  tika:
+    image: apache/tika:3.0.0-full
+    container_name: rag_backend_tika
+    ports:
+      - "9998:9998"
+    command: ["java", "-jar", "/opt/tika/tika-server-standard.jar", "--host", "0.0.0.0"]
+    environment:
+      - TIKA_SERVER_ENDPOINT=http://0.0.0.0:9998
+    networks:
+      - rag-network
+
+  # Ollama LLM Server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag_backend_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    # For GPU support, uncomment:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    networks:
+      - rag-network
+
+  # Ollama Model Setup (runs once to pull models)
+  ollama-setup:
+    image: ollama/ollama:latest
+    container_name: rag_backend_ollama_setup
+    depends_on:
+      - ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: |
+      sh -c "
+        sleep 10
+        ollama pull llama3.2:latest
+        ollama pull llama3.1:latest
+        ollama pull mistral:latest
+        echo 'Models pulled successfully'
+      "
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    networks:
+      - rag-network
+    profiles:
+      - setup
+
+  # Message Consumer for Async Processing
+  messenger-consumer:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag_backend_consumer
+    volumes:
+      - .:/var/www/html
+      - ./public/storage:/var/www/html/public/storage
+      - ./var:/var/www/html/var
+    environment:
+      - APP_ENV=dev
+      - DATABASE_URL=mysql://root:password@db:3306/rag_backend?serverVersion=8.0
+      - REDIS_URL=redis://redis:6379
+      - NEO4J_RAG_DATABASE=bolt://neo4j:neo4j@neo4j:7687
+      - DOCUMENT_EXTRACTOR_URL=http://tika:9998
+      - LMM_URL=http://ollama:11434
+      - MESSENGER_TRANSPORT_DSN=redis://redis:6379/messages
+    command: ["php", "bin/console", "messenger:consume", "async", "--time-limit=3600", "-vv"]
+    depends_on:
+      - redis
+      - neo4j
+      - tika
+      - ollama
+      - db
+    networks:
+      - rag-network
+    restart: always
+
+  # Nginx Web Server (optional, if you want to serve via Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: rag_backend_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./public:/var/www/html/public
+    depends_on:
+      - app
+    networks:
+      - rag-network
+    profiles:
+      - nginx
+
+volumes:
+  mysql_data:
+  redis_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_import:
+  neo4j_plugins:
+  ollama_data:
+
+networks:
+  rag-network:
+    driver: bridge
