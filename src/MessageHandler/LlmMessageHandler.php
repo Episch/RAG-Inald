@@ -2,10 +2,12 @@
 
 namespace App\MessageHandler;
 
+use App\Constants\SystemConstants;
 use App\Message\LlmMessage;
 use App\Service\Connector\LlmConnector;
 use App\Service\TokenChunker;
 use App\Service\QueueStatsService;
+use App\Service\FileStorageService;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -124,7 +126,7 @@ class LlmMessageHandler
         ]);
 
         // Handle large prompts with chunking
-        if ($tokenCount > 4000) {
+        if ($tokenCount > SystemConstants::TOKEN_SYNC_LIMIT) {
             return $this->processLargePrompt($message, $options, $tokenCount);
         }
 

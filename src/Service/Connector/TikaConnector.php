@@ -17,7 +17,7 @@ class TikaConnector implements ConnectorInterface
     {
         $this->httpClient = $httpClient;
         
-        // 🔒 Security: Validate environment variable
+        // Security: Validate environment variable
         $tikaUrl = $_ENV['DOCUMENT_EXTRACTOR_URL'] ?? '';
         if (empty($tikaUrl)) {
             throw new \InvalidArgumentException('DOCUMENT_EXTRACTOR_URL environment variable is required');
@@ -96,7 +96,7 @@ class TikaConnector implements ConnectorInterface
             return null;
         }
 
-        // 🛡️ Robust JSON parsing with error handling
+        // Robust JSON parsing with error handling
         $decodedContent = json_decode($content, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \RuntimeException('Invalid JSON content from Tika: ' . json_last_error_msg());
@@ -112,31 +112,31 @@ class TikaConnector implements ConnectorInterface
             return null;
         }
 
-        // 🛡️ Ensure we're working with a string to avoid deprecation warnings
+        // Ensure we're working with a string to avoid deprecation warnings
         $textContent = (string) $textContent;
 
         // Whitespaces
-        $textContent = preg_replace('/\s+/', ' ', $textContent);       // Mehrfach-Whitespaces
-        $textContent = preg_replace('/\n{2,}/', "\n", $textContent);   // Mehrfach-Zeilenumbrüche
-        $textContent = preg_replace('/^\s+|\s+$/m', '', $textContent); // Leerzeichen am Zeilenanfang/-ende
+        $textContent = preg_replace('/\s+/', ' ', $textContent);       // Multiple whitespaces
+        $textContent = preg_replace('/\n{2,}/', "\n", $textContent);   // Multiple line breaks
+        $textContent = preg_replace('/^\s+|\s+$/m', '', $textContent); // Whitespace at line start/end
 
         // Numbers
-        $textContent = preg_replace('/\n\d+\s*\n/', "\n", $textContent);   // isolierte Seitenzahlen
-        $textContent = preg_replace('/^\s*(Seite|Page)\s*\d+.*$/mi', '', $textContent);
-        $textContent = preg_replace('/^\s*(Kapitel|Chapter)\s*\d+.*$/mi', '', $textContent);
-        // $textContent = preg_replace('/\b\d{4}-\d{2}-\d{2}\b/', '', $textContent); // Datumsangaben YYYY-MM-DD
+        $textContent = preg_replace('/\n\d+\s*\n/', "\n", $textContent);   // Isolated page numbers
+        $textContent = preg_replace('/^\s*(Page)\s*\d+.*$/mi', '', $textContent);
+        $textContent = preg_replace('/^\s*(Chapter)\s*\d+.*$/mi', '', $textContent);
+        // $textContent = preg_replace('/\b\d{4}-\d{2}-\d{2}\b/', '', $textContent); // Date patterns YYYY-MM-DD
 
-        // Codefragments
-        $textContent = preg_replace('/<\?php.*?\?>/s', '', $textContent);             // PHP-Blöcke
-        $textContent = preg_replace('/```.*?```/s', '', $textContent);                // Markdown-Codeblöcke
-        $textContent = preg_replace('/^[\s\t]*[a-zA-Z0-9_]+\s*\(.*\)\s*{.*$/m', '', $textContent); // Funktionsköpfe
-        $textContent = preg_replace('/[;{}<>]{2,}/', '', $textContent);               // Überreste von Syntax
+        // Code fragments
+        $textContent = preg_replace('/<\?php.*?\?>/s', '', $textContent);             // PHP blocks
+        $textContent = preg_replace('/```.*?```/s', '', $textContent);                // Markdown code blocks
+        $textContent = preg_replace('/^[\s\t]*[a-zA-Z0-9_]+\s*\(.*\)\s*{.*$/m', '', $textContent); // Function headers
+        $textContent = preg_replace('/[;{}<>]{2,}/', '', $textContent);               // Syntax remnants
 
-        // signs
-        $textContent = preg_replace('/\.{2,}/', '.', $textContent);       // Mehrfachpunkte
-        $textContent = preg_replace('/(\.\s*){2,}/', '.', $textContent);  // Punkt-Wiederholung
+        // Punctuation
+        $textContent = preg_replace('/\.{2,}/', '.', $textContent);       // Multiple dots
+        $textContent = preg_replace('/(\.\s*){2,}/', '.', $textContent);  // Repeated dots
         
-        // 🔧 Fix: Replace problematic quote characters with safe alternatives
+        // Replace problematic quote characters with safe alternatives
         if ($textContent !== null) {
             // Replace smart quotes with regular quotes using UTF-8 byte sequences (safer than direct Unicode)
             $textContent = str_replace([
@@ -155,16 +155,16 @@ class TikaConnector implements ConnectorInterface
             ], "'", $textContent);
         }
 
-        // html & xml noise
+        // HTML & XML noise
         $textContent = preg_replace('/<style.*?>.*?<\/style>/si', '', $textContent); // CSS
         $textContent = preg_replace('/<script.*?>.*?<\/script>/si', '', $textContent); // JS
-        $textContent = preg_replace('/<[^>]+>/', '', $textContent); // Alle Tags
-        $textContent = preg_replace('/&[a-z]+;/', '', $textContent); // HTML-Entities (&nbsp; &gt;)
+        $textContent = preg_replace('/<[^>]+>/', '', $textContent); // All HTML tags
+        $textContent = preg_replace('/&[a-z]+;/', '', $textContent); // HTML entities (&nbsp; &gt;)
 
-        // technical noise
+        // Technical noise
         // $textContent = preg_replace('/https?:\/\/\S+/', '', $textContent);    // URLs
-        $textContent = preg_replace('/[A-Z]:\\\\[^\s]+/', '', $textContent); // Windows-Pfade
-        $textContent = preg_replace('/\/[^\s]+/', '', $textContent);         // UNIX-Pfade
+        $textContent = preg_replace('/[A-Z]:\\\\[^\s]+/', '', $textContent); // Windows paths
+        $textContent = preg_replace('/\/[^\s]+/', '', $textContent);         // UNIX paths
         $textContent = preg_replace('/[A-F0-9]{32,}/', '', $textContent);    // Hashes (MD5/SHA)
 
         return trim($textContent);

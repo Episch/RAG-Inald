@@ -151,3 +151,14 @@ services:
         public: true
         arguments:
             $fileStorageService: '@App\Service\FileStorageService'
+
+    # Redis Connector Service for Message Queue Monitoring
+    App\Service\Connector\RedisConnector:
+        public: true
+
+    # Queue Debug Controller
+    App\Controller\DebugQueueController:
+        public: true
+        arguments:
+            $queueStats: '@App\Service\QueueStatsService'
+            $redisConnector: '@App\Service\Connector\RedisConnector'

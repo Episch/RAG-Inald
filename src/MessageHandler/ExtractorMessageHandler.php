@@ -8,35 +8,46 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
 
+/**
+ * Message handler for document extraction using Apache Tika.
+ * 
+ * Processes extraction messages, extracts document content using Tika,
+ * and saves results to the file system for further processing.
+ */
 class ExtractorMessageHandler
 {
-    private Finder $finder;
-    private TikaConnector $extractorConnector;
-    private LoggerInterface $logger;
-    private string $promptsPath;
-    private string $documentStoragePath;
-
+    /**
+     * Initialize extractor handler with required dependencies.
+     * 
+     * @param Finder $finder File system finder for locating documents
+     * @param TikaConnector $extractorConnector Apache Tika service connector
+     * @param LoggerInterface $logger Logger for operation tracking
+     * @param string $promptsPath Path to prompt template files
+     * @param string $documentStoragePath Base path for document storage
+     */
     public function __construct(
-        Finder $finder, 
-        TikaConnector $extractorConnector, 
-        LoggerInterface $logger,
-        string $promptsPath,
-        string $documentStoragePath
-    ) {
-        $this->finder = $finder;
-        $this->extractorConnector = $extractorConnector;
-        $this->logger = $logger;
-        $this->promptsPath = $promptsPath;
-        $this->documentStoragePath = rtrim($documentStoragePath, '/') . '/';
-    }
+        private readonly Finder $finder,
+        private readonly TikaConnector $extractorConnector,
+        private readonly LoggerInterface $logger,
+        private readonly string $promptsPath,
+        private readonly string $documentStoragePath
+    ) {}
 
-    public function __invoke(ExtractorMessage $message)
+    /**
+     * Process document extraction message.
+     * 
+     * @param ExtractorMessage $message Message containing extraction parameters
+     * 
+     * @return void
+     * @throws \RuntimeException If file operations fail
+     */
+    public function __invoke(ExtractorMessage $message): void
     {
         $startTime = microtime(true);
         $path = $message->path;
         
         // Use configured storage path instead of hardcoded path
-        $secureBasePath = $this->documentStoragePath;
+        $secureBasePath = rtrim($this->documentStoragePath, '/') . '/';
 
         if (!is_dir($secureBasePath . $path)) {
             throw new \RuntimeException('Path does not exist: ' . $secureBasePath . $path);
@@ -94,12 +105,21 @@ class ExtractorMessageHandler
             'prompt_time' => $promptTime,
             'path' => $path
         ]);
-
-        return 0;
     }
 
     /**
-     * Save extraction data and prepared prompt to file
+     * Save extraction data and prepared prompt to file system.
+     * 
+     * @param ExtractorMessage $message Original extraction message
+     * @param string $path Document path 
+     * @param string|null $extractContent Extracted document content
+     * @param string $fullPrompt Prepared prompt for LLM processing
+     * @param float $startTime Processing start time
+     * @param float $tikaTime Tika processing duration
+     * @param float $optimizationTime Content optimization duration
+     * @param float $promptTime Prompt preparation duration
+     * 
+     * @return void
      */
     private function saveExtractionData(
         ExtractorMessage $message,

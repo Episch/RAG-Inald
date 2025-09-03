@@ -3,25 +3,40 @@
 // src/Service/TokenChunker.php
 namespace App\Service;
 
+use App\Constants\SystemConstants;
 use Yethee\Tiktoken\EncoderProvider;
 
+/**
+ * Token-based text chunking service using tiktoken for accurate token counting.
+ * 
+ * Provides functionality to count tokens and split large text into manageable chunks
+ * while maintaining context through overlap.
+ */
 class TokenChunker
 {
     private EncoderProvider $provider;
-    private int $chunkSize;
-    private int $overlap;
-
-    public function __construct(int $chunkSize = 800, int $overlap = 100)
-    {
-        $this->provider = new EncoderProvider();
-        $this->chunkSize = $chunkSize;
-        $this->overlap = $overlap;
-    }
-
 
     /**
-     * Count tokens in a text using tiktoken encoder
-     * Falls back to gpt-3.5-turbo for unsupported models (e.g., Ollama models)
+     * Initialize chunker with configurable parameters.
+     * 
+     * @param int $chunkSize Maximum tokens per chunk
+     * @param int $overlap Number of tokens to overlap between chunks
+     */
+    public function __construct(
+        private readonly int $chunkSize = SystemConstants::TOKEN_CHUNK_SIZE,
+        private readonly int $overlap = SystemConstants::TOKEN_CHUNK_OVERLAP
+    ) {
+        $this->provider = new EncoderProvider();
+    }
+
+    /**
+     * Count tokens in a text using tiktoken encoder.
+     * Falls back to gpt-3.5-turbo for unsupported models (e.g., Ollama models).
+     * 
+     * @param string $text Text to count tokens for
+     * @param string $model Model name for token counting
+     * 
+     * @return int Actual token count
      */
     public function countTokens(string $text, string $model = 'gpt-3.5-turbo'): int
     {
@@ -41,7 +56,11 @@ class TokenChunker
     }
 
     /**
-     * Map non-OpenAI models to compatible tiktoken models for token counting
+     * Map non-OpenAI models to compatible tiktoken models for token counting.
+     * 
+     * @param string $model Original model name
+     * 
+     * @return string Compatible tiktoken model name
      */
     private function mapToTikTokenModel(string $model): string
     {
@@ -74,7 +93,12 @@ class TokenChunker
     }
 
     /**
-     * Chunk text into smaller pieces with token-based chunking
+     * Chunk text into smaller pieces with token-based chunking.
+     * 
+     * @param string $text Text to chunk
+     * @param string $model Model name for token counting
+     * 
+     * @return array Array of text chunks
      */
     public function chunk(string $text, string $model = 'gpt-3.5-turbo'): array
     {

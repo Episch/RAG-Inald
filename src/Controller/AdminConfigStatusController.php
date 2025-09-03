@@ -23,10 +23,20 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 )]
 class AdminConfigStatusController
 {
+    /**
+     * Initialize admin config status controller.
+     * 
+     * @param ConfigurationManager $configManager System configuration manager
+     */
     public function __construct(
-        private ConfigurationManager $configManager
+        private readonly ConfigurationManager $configManager
     ) {}
 
+    /**
+     * Get detailed system configuration status.
+     * 
+     * @return JsonResponse Configuration report and validation results
+     */
     public function __invoke(): JsonResponse
     {
         $configReport = $this->configManager->getConfigReport();
@@ -34,7 +44,11 @@ class AdminConfigStatusController
         return new JsonResponse([
             'configuration' => $configReport,
             'timestamp' => date('c'),
-            'environment' => $_ENV['APP_ENV'] ?? 'prod'
+            'environment' => $_ENV['APP_ENV'] ?? 'prod',
+            'debug_endpoints' => [
+                'queue_analysis' => '/admin/debug/queue',
+                'ollama_diagnostics' => '/admin/debug/ollama'
+            ]
         ], 200);
     }
 }

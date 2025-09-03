@@ -1,6 +1,7 @@
 <?php
 namespace App\Controller;
 
+use App\Constants\SystemConstants;
 use App\Dto\Extraction;
 use App\Dto\QueueResponse;
 use App\Message\ExtractorMessage;
@@ -73,10 +74,10 @@ class ExtractionController
         
         $totalSeconds = $baseTime + $pathComplexity;
         
-        if ($totalSeconds < 60) {
+        if ($totalSeconds < SystemConstants::SECONDS_PER_MINUTE) {
             return "{$totalSeconds} seconds";
         } elseif ($totalSeconds < 3600) {
-            $minutes = intval($totalSeconds / 60);
+            $minutes = intval($totalSeconds / SystemConstants::SECONDS_PER_MINUTE);
             return "{$minutes} minute(s)";
         } else {
             $hours = round($totalSeconds / 3600, 1);

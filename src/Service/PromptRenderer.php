@@ -2,28 +2,43 @@
 
 namespace App\Service;
 
+/**
+ * Template renderer for prompt generation with variable substitution.
+ * 
+ * Handles secure rendering of templates with placeholder replacement and
+ * automatic JSON encoding of complex data structures.
+ */
 class PromptRenderer
 {
-    protected string $template;
-
-    public function __construct(string $template)
+    /**
+     * Initialize renderer with template content.
+     * 
+     * @param string $template Template content with {{variable}} placeholders
+     */
+    public function __construct(protected readonly string $template)
     {
-        $this->template = $template;
     }
 
+    /**
+     * Render template with provided variables.
+     * 
+     * @param array $variables Associative array of variables for substitution
+     * 
+     * @return string Rendered template with variables substituted
+     */
     public function render(array $variables = []): string
     {
         $rendered = $this->template;
         foreach ($variables as $key => $value) {
-            // Escaped JSON einfügen, falls notwendig
+            // Insert escaped JSON if necessary
             if (is_array($value) || is_object($value)) {
                 $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             }
             
-            // 🔧 Fix: Handle null values to avoid deprecation warning
+            // Handle null values to avoid deprecation warnings
             $value = $value ?? '';
             
-            # {{tika_json}}
+            // Replace {{variable}} placeholders
             $rendered = str_replace('{{'.$key.'}}', (string)$value, $rendered);
         }
         return $rendered;

@@ -2,150 +2,174 @@
 
 namespace App\Controller;
 
-use ApiPlatform\OpenApi\Model\Response;
+use App\Dto\SystemStatus;
 use App\Service\Connector\Neo4JConnector;
+use App\Service\Connector\RedisConnector;
 use App\Service\Connector\TikaConnector;
 use App\Service\Connector\LlmConnector;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
+/**
+ * System status controller for monitoring service health.
+ * 
+ * Provides comprehensive health checks for all connected services
+ * including Apache Tika, Neo4j, Redis, and LLM services.
+ */
 class StatusController
 {
-    private TikaConnector $tikaConnector;
-    private Neo4JConnector $neo4JConnector;
-    private LlmConnector $llmConnector;
-
+    /**
+     * Initialize status controller with service connectors.
+     * 
+     * @param TikaConnector $tikaConnector Apache Tika document extraction service
+     * @param Neo4JConnector $neo4JConnector Neo4j graph database service
+     * @param RedisConnector $redisConnector Redis cache and message queue service
+     * @param LlmConnector $llmConnector Large Language Model service
+     */
     public function __construct(
-        TikaConnector $tikaConnector, 
-        Neo4JConnector $neo4JConnector,
-        LlmConnector $llmConnector
-    ) {
-        $this->tikaConnector = $tikaConnector;
-        $this->neo4JConnector = $neo4JConnector;
-        $this->llmConnector = $llmConnector;
-    }
+        private readonly TikaConnector $tikaConnector,
+        private readonly Neo4JConnector $neo4JConnector,
+        private readonly RedisConnector $redisConnector,
+        private readonly LlmConnector $llmConnector
+    ) {}
 
+    /**
+     * Get comprehensive system status.
+     * 
+     * @return JsonResponse JSON response with service status information
+     */
     public function __invoke(): JsonResponse
     {
         try {
-            // 🚀 Performance: Cache responses to avoid duplicate API calls
+            // Performance: Cache responses to avoid duplicate API calls
             $tikaStatus = $this->getTikaStatus();
             $neo4jStatus = $this->getNeo4jStatus();
+            $redisStatus = $this->getRedisStatus();
             $llmStatus = $this->getLlmStatus();
             
+            $statusDto = SystemStatus::create($tikaStatus, $neo4jStatus, $redisStatus, $llmStatus);
+            
             return new JsonResponse([
-                'status' => [
-                    [
-                        'service' => 'DocumentConnector',
-                        'content' => $tikaStatus['content'],
-                        'status_code' => $tikaStatus['status_code'],
-                        'healthy' => $tikaStatus['status_code'] >= 200 && $tikaStatus['status_code'] < 300
-                    ],
-                    [
-                        'service' => 'RagConnector', 
-                        'content' => $neo4jStatus['content'],
-                        'status_code' => $neo4jStatus['status_code'],
-                        'healthy' => $neo4jStatus['status_code'] >= 200 && $neo4jStatus['status_code'] < 300
-                    ],
-                    [
-                        'service' => 'LlmConnector',
-                        'content' => $llmStatus['content'],
-                        'status_code' => $llmStatus['status_code'],
-                        'healthy' => $llmStatus['status_code'] >= 200 && $llmStatus['status_code'] < 300,
-                        'models' => $llmStatus['models'] ?? []
-                    ],
-                ]
+                'services' => $statusDto->services,
+                'overall_status' => $statusDto->overall,
+                'timestamp' => $statusDto->timestamp,
+                'environment' => $statusDto->environment,
+                'queue_debug_endpoint' => '/admin/debug/queue'
             ], 200);
         } catch (\Exception $exception) {
             return new JsonResponse([
-                'error' => true,
+                'error' => 'Failed to retrieve system status',
                 'message' => $exception->getMessage(),
-                'status_code' => $exception->getCode() ?: 500
-            ], $exception->getCode() ?: 500);
+                'timestamp' => date('c')
+            ], 503);
         }
     }
 
     /**
-     * 🚀 Performance: Get Tika status with single API call
+     * Get Tika service status with error handling.
+     * 
+     * @return array Service status information
      */
     private function getTikaStatus(): array
     {
         try {
-            $response = $this->tikaConnector->getStatus();
+            $serviceInfo = $this->tikaConnector->getServiceInfo();
             return [
-                'content' => $response->getContent(),
-                'status_code' => $response->getStatusCode()
+                'name' => $serviceInfo['name'],
+                'version' => $serviceInfo['version'],
+                'healthy' => $serviceInfo['healthy'],
+                'status_code' => $serviceInfo['status_code']
             ];
         } catch (\Exception $e) {
             return [
-                'content' => 'Connection failed: ' . $e->getMessage(),
-                'status_code' => 503 // Service Unavailable
+                'name' => 'Apache Tika',
+                'version' => 'unknown',
+                'healthy' => false,
+                'status_code' => 503,
+                'error' => $e->getMessage()
             ];
         }
     }
 
     /**
-     * 🚀 Performance: Get Neo4J status with single API call and safe JSON parsing
+     * Get Neo4j service status with error handling.
+     * 
+     * @return array Service status information
      */
     private function getNeo4jStatus(): array
     {
         try {
-            $response = $this->neo4JConnector->getStatus();
-            $content = $response->getContent();
-            $statusCode = $response->getStatusCode();
-            
-            // 🛡️ Safe JSON parsing
-            $jsonData = json_decode($content, true);
-            $version = $jsonData['neo4j_version'] ?? 'Unknown version';
-            
+            $serviceInfo = $this->neo4JConnector->getServiceInfo();
             return [
-                'content' => $version,
-                'status_code' => $statusCode
+                'name' => $serviceInfo['name'],
+                'version' => $serviceInfo['version'],
+                'healthy' => $serviceInfo['healthy'],
+                'status_code' => $serviceInfo['status_code']
             ];
         } catch (\Exception $e) {
             return [
-                'content' => 'Connection failed: ' . $e->getMessage(),
-                'status_code' => 503 // Service Unavailable
+                'name' => 'Neo4j',
+                'version' => 'unknown',
+                'healthy' => false,
+                'status_code' => 503,
+                'error' => $e->getMessage()
             ];
         }
     }
 
     /**
-     * 🚀 Performance: Get LLM status with single API call and model information
+     * Get Redis service status with error handling.
+     * 
+     * @return array Service status information
+     */
+    private function getRedisStatus(): array
+    {
+        try {
+            $serviceInfo = $this->redisConnector->getServiceInfo();
+            return [
+                'name' => $serviceInfo['name'],
+                'version' => $serviceInfo['version'],
+                'healthy' => $serviceInfo['healthy'],
+                'status_code' => $serviceInfo['status_code'],
+                'metrics' => $serviceInfo['metrics'] ?? [],
+                'databases' => $serviceInfo['databases'] ?? []
+            ];
+        } catch (\Exception $e) {
+            return [
+                'name' => 'Redis',
+                'version' => 'unknown',
+                'healthy' => false,
+                'status_code' => 503,
+                'metrics' => [],
+                'databases' => [],
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get LLM service status with error handling.
+     * 
+     * @return array Service status information
      */
     private function getLlmStatus(): array
     {
         try {
-            // Get version/status
-            $statusResponse = $this->llmConnector->getStatus();
-            $statusContent = $statusResponse->getContent();
-            $statusCode = $statusResponse->getStatusCode();
-            
-            // Parse version info
-            $versionData = json_decode($statusContent, true);
-            $version = $versionData['version'] ?? 'Unknown version';
-            
-            // Try to get available models (optional - don't fail if this doesn't work)
-            $models = [];
-            try {
-                $modelsResponse = $this->llmConnector->getModels();
-                if ($modelsResponse->getStatusCode() === 200) {
-                    $modelsData = json_decode($modelsResponse->getContent(), true);
-                    $models = array_map(fn($model) => $model['name'] ?? $model, $modelsData['models'] ?? []);
-                }
-            } catch (\Exception $e) {
-                // Models fetch failed, but that's OK - we still have status
-            }
-            
+            $serviceInfo = $this->llmConnector->getServiceInfo();
             return [
-                'content' => $version,
-                'status_code' => $statusCode,
-                'models' => $models
+                'name' => $serviceInfo['name'],
+                'version' => $serviceInfo['version'],
+                'healthy' => $serviceInfo['healthy'],
+                'status_code' => $serviceInfo['status_code'],
+                'models' => $serviceInfo['models'] ?? []
             ];
         } catch (\Exception $e) {
             return [
-                'content' => 'Connection failed: ' . $e->getMessage(),
-                'status_code' => 503, // Service Unavailable
-                'models' => []
+                'name' => 'Ollama LLM',
+                'version' => 'unknown',
+                'healthy' => false,
+                'status_code' => 503,
+                'models' => [],
+                'error' => $e->getMessage()
             ];
         }
     }

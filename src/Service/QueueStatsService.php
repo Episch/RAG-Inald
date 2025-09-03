@@ -149,4 +149,44 @@ class QueueStatsService
             $this->logger->debug('Failed to decrement queue counter: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Reset counter to specific value (for synchronization).
+     * 
+     * @param int $value Value to set counter to
+     */
+    public function resetQueueCounter(int $value = 0): void
+    {
+        try {
+            if (function_exists('apcu_enabled') && apcu_enabled()) {
+                apcu_store('llm_queue_count', $value);
+            } else {
+                $counterFile = sys_get_temp_dir() . '/llm_queue_count.txt';
+                file_put_contents($counterFile, $value);
+            }
+            $this->logger->info('Queue counter reset', ['new_value' => $value]);
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to reset queue counter: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Synchronize counter with actual Redis queue count.
+     * 
+     * @param int $actualCount Actual count from Redis
+     */
+    public function syncWithRedisCount(int $actualCount): void
+    {
+        $currentCounter = $this->getQueueCounterValue() ?? 0;
+        
+        if ($currentCounter !== $actualCount) {
+            $this->logger->info('Synchronizing queue counter', [
+                'old_counter' => $currentCounter,
+                'redis_count' => $actualCount,
+                'difference' => $currentCounter - $actualCount
+            ]);
+            
+            $this->resetQueueCounter($actualCount);
+        }
+    }
 }

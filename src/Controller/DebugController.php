@@ -5,6 +5,7 @@ namespace App\Controller;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use App\Service\Connector\LlmConnector;
+use App\Service\Connector\RedisConnector;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 #[ApiResource(
@@ -22,10 +23,22 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 )]
 class DebugController
 {
-    public function __construct(private LlmConnector $llmConnector)
-    {
-    }
+    /**
+     * Initialize debug controller with service connectors.
+     * 
+     * @param LlmConnector $llmConnector LLM service connector for diagnostics
+     * @param RedisConnector $redisConnector Redis service connector for queue monitoring
+     */
+    public function __construct(
+        private readonly LlmConnector $llmConnector,
+        private readonly RedisConnector $redisConnector
+    ) {}
 
+    /**
+     * Get comprehensive Ollama LLM diagnostics.
+     * 
+     * @return JsonResponse Detailed diagnostic information
+     */
     public function __invoke(): JsonResponse
     {
         try {
@@ -71,7 +84,8 @@ class DebugController
                         'error' => $generateError
                     ],
                     'recommendations' => $this->getRecommendations($endpoints, $modelsResponse, $generateError)
-                ]
+                ],
+                'note' => 'For detailed queue analysis use /admin/debug/queue'
             ], 200);
             
         } catch (\Exception $e) {
@@ -82,6 +96,8 @@ class DebugController
             ], 500);
         }
     }
+
+
     
     private function getRecommendations(array $endpoints, ?array $modelsResponse, ?string $generateError): array
     {
@@ -99,7 +115,7 @@ class DebugController
         
         // Check for 404 errors
         if ($generateError && strpos($generateError, '404') !== false) {
-            $recommendations[] = "🔧 404 error suggests endpoint doesn't exist. Try updating Ollama";
+            $recommendations[] = "404 error suggests endpoint doesn't exist. Try updating Ollama";
         }
         
         // General recommendations

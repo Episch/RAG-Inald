@@ -1,36 +1,55 @@
 <?php
-// src/Service/Connector/Neo4JConnector.php
+
 namespace App\Service\Connector;
 
+use App\Constants\SystemConstants;
+use App\Exception\ServiceException;
 use App\Service\HttpClientService;
 use App\Contract\ConnectorInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
+/**
+ * Neo4j connector for graph database communication.
+ * 
+ * Provides functionality to interact with Neo4j database including
+ * health checks, data indexing, and query execution.
+ */
 class Neo4JConnector implements ConnectorInterface
 {
-    private HttpClientService $httpClient;
-    private string $neo4jBaseUrl; // 🔧 Fixed: Missing property declaration
+    private string $neo4jBaseUrl;
 
-    public function __construct(HttpClientService $httpClient)
-    {
-        $this->httpClient = $httpClient;
-        
-        // 🔒 Security: Validate environment variable
+    /**
+     * Initialize Neo4j connector with validated configuration.
+     * 
+     * @param HttpClientService $httpClient HTTP client for Neo4j communication
+     * 
+     * @throws ServiceException If required environment variables are missing
+     */
+    public function __construct(
+        private readonly HttpClientService $httpClient
+    ) {
+        // Security: Validate environment variable
         $neo4jUrl = $_ENV['NEO4J_RAG_DATABASE'] ?? '';
         if (empty($neo4jUrl)) {
-            throw new \InvalidArgumentException('NEO4J_RAG_DATABASE environment variable is required');
+            throw ServiceException::configurationError('Neo4j', 'NEO4J_RAG_DATABASE environment variable');
         }
         
         $this->neo4jBaseUrl = rtrim($neo4jUrl, '/');
     }
 
+    /**
+     * Get Neo4j service status.
+     * 
+     * @return ResponseInterface HTTP response from Neo4j
+     * @throws ServiceException If connection fails
+     */
     public function getStatus(): ResponseInterface
     {
         try {
             return $this->httpClient->get($this->neo4jBaseUrl);
         } catch (TransportExceptionInterface $e) {
-            throw new \RuntimeException("Failed to connect to Neo4J: " . $e->getMessage(), 0, $e);
+            throw ServiceException::connectionFailed('Neo4j', $e);
         }
     }
 

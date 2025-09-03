@@ -8,21 +8,27 @@ use App\Exception\LlmException;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
+/**
+ * LLM connector for Ollama service communication.
+ * 
+ * Provides functionality to interact with local LLM services,
+ * including text generation, model management, and health checks.
+ */
 class LlmConnector implements ConnectorInterface
 {
-    private HttpClientService $httpClient;
-    private string $llmBaseUrl;
-
-    public function __construct(HttpClientService $httpClient)
+    /**
+     * Initialize LLM connector with validated configuration.
+     * 
+     * @param HttpClientService $httpClient HTTP client for LLM communication
+     */
+    public function __construct(private readonly HttpClientService $httpClient)
     {
-        $this->httpClient = $httpClient;
-        
-        // 🔒 Environment variable validation with fallback
+        // Environment variable validation with fallback
         $llmUrl = $_ENV['LMM_URL'] ?? '';
         if (empty($llmUrl)) {
-            // 🚨 Fallback to localhost Ollama default - log warning
+            // Fallback to localhost Ollama default - log warning
             $llmUrl = 'http://localhost:11434';
-            error_log('⚠️ LMM_URL not set, using default: ' . $llmUrl);
+            error_log('WARNING: LMM_URL not set, using default: ' . $llmUrl);
         }
         
         $this->llmBaseUrl = rtrim($llmUrl, '/');
@@ -145,7 +151,7 @@ class LlmConnector implements ConnectorInterface
             throw new \InvalidArgumentException('Prompt cannot be empty');
         }
 
-        // 🔧 Check if model exists first, use a fallback if not
+        // Check if model exists first, use a fallback if not
         $availableModels = $this->getAvailableModelNames();
         if (!empty($availableModels) && !in_array($model, $availableModels)) {
             $fallbackModel = $availableModels[0] ?? 'llama3.2';
@@ -163,7 +169,8 @@ class LlmConnector implements ConnectorInterface
             ], $options)
         ];
 
-        error_log("🚀 LLM Request: " . json_encode(['url' => $this->llmBaseUrl . '/api/generate', 'model' => $model, 'prompt_length' => strlen($prompt)]));
+        error_log("LLM Request: " . json_encode(['url' => $this->llmBaseUrl . '/api/generate', 'model' => $model, 'prompt_length' => strlen($prompt)]));
+        // TODO: Replace error_log with proper logger injection
 
         try {
             $response = $this->httpClient->post($this->llmBaseUrl . '/api/generate', [

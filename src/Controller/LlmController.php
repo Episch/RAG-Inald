@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Constants\SystemConstants;
 use App\Dto\LlmPrompt;
 use App\Dto\QueueResponse;
 use App\Message\LlmMessage;
@@ -93,9 +94,9 @@ class LlmController
         try {
             // Validate token count to prevent timeout
             $chunks = $this->tokenChunker->chunk($data->getPrompt(), 'gpt-3.5-turbo'); // Rough estimation
-            $estimatedTokens = count($chunks) * 800; // Rough estimation
+            $estimatedTokens = count($chunks) * SystemConstants::TOKEN_CHUNK_SIZE; // Rough estimation
             
-            if ($estimatedTokens > 4000) {
+            if ($estimatedTokens > SystemConstants::TOKEN_SYNC_LIMIT) {
                 return new JsonResponse([
                     'error' => 'Prompt too long for synchronous processing',
                     'estimated_tokens' => $estimatedTokens,
@@ -177,10 +178,10 @@ class LlmController
         
         $totalSeconds = intval(($baseTime + $tokenComplexity) * $modelMultiplier);
         
-        if ($totalSeconds < 60) {
+        if ($totalSeconds < SystemConstants::SECONDS_PER_MINUTE) {
             return "{$totalSeconds} seconds";
         } elseif ($totalSeconds < 3600) {
-            $minutes = intval($totalSeconds / 60);
+            $minutes = intval($totalSeconds / SystemConstants::SECONDS_PER_MINUTE);
             return "{$minutes} minute(s)";
         } else {
             $hours = round($totalSeconds / 3600, 1);
