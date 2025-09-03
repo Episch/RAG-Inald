@@ -64,6 +64,7 @@ services:
         
     App\MessageHandler\ExtractorMessageHandler:
         arguments:
+            $logger: '@logger'
             $promptsPath: '%kernel.project_dir%/config/prompts/extraction.yaml'
             $documentStoragePath: '%app.document_storage_path%'
         tags: ['messenger.message_handler']

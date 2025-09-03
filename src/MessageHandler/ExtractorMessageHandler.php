@@ -3,8 +3,8 @@ namespace App\MessageHandler;
 
 use App\Message\ExtractorMessage;
 use App\Service\Connector\TikaConnector;
-
 use App\Service\PromptRenderer;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
 
@@ -12,17 +12,20 @@ class ExtractorMessageHandler
 {
     private Finder $finder;
     private TikaConnector $extractorConnector;
+    private LoggerInterface $logger;
     private string $promptsPath;
     private string $documentStoragePath;
 
     public function __construct(
         Finder $finder, 
         TikaConnector $extractorConnector, 
+        LoggerInterface $logger,
         string $promptsPath,
         string $documentStoragePath
     ) {
         $this->finder = $finder;
         $this->extractorConnector = $extractorConnector;
+        $this->logger = $logger;
         $this->promptsPath = $promptsPath;
         $this->documentStoragePath = rtrim($documentStoragePath, '/') . '/';
     }
@@ -74,13 +77,23 @@ class ExtractorMessageHandler
                 $this->saveExtractionData($message, $path, $extractContent, $fullPrompt, $startTime, $tikaTime, $optimizationTime, $promptTime);
             } catch (\Exception $e) {
                 $executionTime = round(microtime(true) - $startTime, 3);
-                error_log("❌ Extraction file save failed: " . $e->getMessage() . " - Execution time: {$executionTime}s");
+                $this->logger->error('Extraction file save failed', [
+                    'error' => $e->getMessage(),
+                    'execution_time' => $executionTime,
+                    'path' => $path
+                ]);
                 throw $e;
             }
         }
 
         $executionTime = round(microtime(true) - $startTime, 3);
-        error_log("✅ Extraction completed - Total: {$executionTime}s (Tika: {$tikaTime}s, Optimization: {$optimizationTime}s, Prompt: {$promptTime}s)");
+        $this->logger->info('Extraction completed successfully', [
+            'total_time' => $executionTime,
+            'tika_time' => $tikaTime,
+            'optimization_time' => $optimizationTime,
+            'prompt_time' => $promptTime,
+            'path' => $path
+        ]);
 
         return 0;
     }
@@ -110,7 +123,8 @@ class ExtractorMessageHandler
         $outputData = [
             'file_id' => $extractionFileId,
             'type' => 'extraction',
-            'input' => [
+            'input' => [                
+                'original_filename' => $filename,
                 'path' => $path,
                 'extracted_content_length' => strlen($extractContent ?? ''),
                 'prompt_length' => strlen($fullPrompt),
@@ -124,7 +138,7 @@ class ExtractorMessageHandler
                 'prompt_time_seconds' => $promptTime,
                 'total_time_seconds' => round(microtime(true) - $startTime, 3)
             ],
-            'created_at' => date('c')
+            'created_at' => date('c'),
         ];
         
         $jsonOutput = json_encode($outputData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
@@ -141,6 +155,11 @@ class ExtractorMessageHandler
             throw new \RuntimeException("Failed to write extraction output to: {$fullOutputPath}");
         }
         
-        error_log("📁 Extraction data saved: FileId: {$extractionFileId}, Output: {$filename}");
+        $this->logger->info('Extraction data saved to file', [
+            'file_id' => $extractionFileId,
+            'filename' => $filename,
+            'file_path' => $fullOutputPath,
+            'path' => $path
+        ]);
     }
 }
