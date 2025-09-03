@@ -106,13 +106,37 @@ class LlmMessageHandler
         }
     }
 
-    private function processPrompt(LlmMessage $message): array
+        private function processPrompt(LlmMessage $message): array
     {
         $options = [
             'temperature' => $message->temperature,
             'num_predict' => $message->maxTokens,
         ];
 
+        // Check if prompt needs chunking for large prompts
+        $tokenCount = $this->tokenChunker->countTokens($message->prompt, $message->model);
+        
+        $this->logger->info('Processing LLM prompt', [
+            'token_count' => $tokenCount,
+            'model' => $message->model,
+            'type' => $message->type,
+            'use_extraction_file' => $message->useExtractionFile
+        ]);
+
+        // Handle large prompts with chunking
+        if ($tokenCount > 4000) {
+            return $this->processLargePrompt($message, $options, $tokenCount);
+        }
+
+        // Regular processing for smaller prompts
+        return $this->processRegularPrompt($message, $options);
+    }
+
+    /**
+     * Process regular-sized prompts directly
+     */
+    private function processRegularPrompt(LlmMessage $message, array $options): array
+    {
         // Determine the processing type - use categorize if extraction file is being used
         $processingType = $message->useExtractionFile ? 'categorize' : $message->type;
         
@@ -144,6 +168,163 @@ class LlmMessageHandler
         }
 
         return $decodedResponse;
+    }
+
+    /**
+     * Process large prompts with chunking strategy
+     */
+    private function processLargePrompt(LlmMessage $message, array $options, int $tokenCount): array
+    {
+        $this->logger->warning('Large prompt detected, using chunking strategy', [
+            'token_count' => $tokenCount,
+            'model' => $message->model,
+            'request_id' => $message->requestId
+        ]);
+
+        // Split prompt into manageable chunks
+        $chunks = $this->tokenChunker->chunk($message->prompt, $message->model);
+        $processingType = $message->useExtractionFile ? 'categorize' : $message->type;
+        
+        $results = [];
+        $chunkCount = count($chunks);
+        
+        foreach ($chunks as $index => $chunk) {
+            $this->logger->debug('Processing chunk', [
+                'chunk' => $index + 1,
+                'total_chunks' => $chunkCount,
+                'chunk_length' => strlen($chunk),
+                'request_id' => $message->requestId
+            ]);
+            
+            try {
+                // Add context for chunk processing
+                $chunkPrompt = $this->prepareChunkPrompt($chunk, $index + 1, $chunkCount, $processingType);
+                
+                switch ($processingType) {
+                    case 'categorize':
+                        $response = $this->llmConnector->promptForCategorization($chunkPrompt, $message->model);
+                        break;
+                    case 'chat':
+                        // For chat chunking, we need to maintain conversation context
+                        $messages = [['role' => 'user', 'content' => $chunkPrompt]];
+                        $response = $this->llmConnector->chatCompletion($messages, $message->model, $options);
+                        break;
+                    case 'generate':
+                    default:
+                        $response = $this->llmConnector->generateText($chunkPrompt, $message->model, $options);
+                        break;
+                }
+
+                $content = $response->getContent();
+                $chunkResult = json_decode($content, true);
+                
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new \RuntimeException('Invalid JSON response from LLM chunk: ' . json_last_error_msg());
+                }
+                
+                $results[] = [
+                    'chunk_index' => $index + 1,
+                    'chunk_result' => $chunkResult
+                ];
+                
+            } catch (\Exception $e) {
+                $this->logger->error('Failed to process chunk', [
+                    'chunk' => $index + 1,
+                    'error' => $e->getMessage(),
+                    'request_id' => $message->requestId
+                ]);
+                
+                // Continue with other chunks, but record the failure
+                $results[] = [
+                    'chunk_index' => $index + 1,
+                    'error' => $e->getMessage(),
+                    'chunk_result' => null
+                ];
+            }
+        }
+        
+        // Combine results from all chunks
+        return $this->combineChunkResults($results, $processingType);
+    }
+
+    /**
+     * Prepare prompt for chunk processing with context
+     */
+    private function prepareChunkPrompt(string $chunk, int $chunkIndex, int $totalChunks, string $type): string
+    {
+        $contextPrefix = "Dies ist Teil {$chunkIndex} von {$totalChunks} eines größeren Dokuments. ";
+        
+        switch ($type) {
+            case 'categorize':
+                return $contextPrefix . "Kategorisiere und extrahiere Entitäten aus diesem Textabschnitt:\n\n" . $chunk;
+            case 'generate':
+                return $contextPrefix . "Verarbeite diesen Textabschnitt:\n\n" . $chunk;
+            default:
+                return $contextPrefix . $chunk;
+        }
+    }
+
+    /**
+     * Combine results from multiple chunks into final response
+     */
+    private function combineChunkResults(array $results, string $type): array
+    {
+        $combinedResponse = [
+            'processing_type' => $type,
+            'total_chunks' => count($results),
+            'successful_chunks' => 0,
+            'failed_chunks' => 0,
+            'combined_result' => []
+        ];
+
+        $entities = [];
+        $responses = [];
+        
+        foreach ($results as $result) {
+            if (isset($result['error'])) {
+                $combinedResponse['failed_chunks']++;
+                continue;
+            }
+            
+            $combinedResponse['successful_chunks']++;
+            $chunkResult = $result['chunk_result'];
+            
+            // Combine based on processing type
+            switch ($type) {
+                case 'categorize':
+                    // Merge entities and categories from all chunks
+                    if (isset($chunkResult['response'])) {
+                        $chunkData = is_string($chunkResult['response']) 
+                            ? json_decode($chunkResult['response'], true) 
+                            : $chunkResult['response'];
+                        
+                        if (is_array($chunkData)) {
+                            $entities = array_merge_recursive($entities, $chunkData);
+                        }
+                    }
+                    break;
+                    
+                case 'generate':
+                case 'chat':
+                default:
+                    // Concatenate text responses
+                    if (isset($chunkResult['response'])) {
+                        $responses[] = $chunkResult['response'];
+                    }
+                    break;
+            }
+        }
+        
+        // Finalize combined result
+        if ($type === 'categorize') {
+            $combinedResponse['combined_result'] = $entities;
+            $combinedResponse['response'] = json_encode($entities);
+        } else {
+            $combinedResponse['combined_result'] = implode("\n\n", $responses);
+            $combinedResponse['response'] = implode("\n\n", $responses);
+        }
+        
+        return $combinedResponse;
     }
 
     private function saveResponse(LlmMessage $message, array $response): string

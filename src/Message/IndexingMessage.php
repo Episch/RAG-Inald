@@ -7,12 +7,15 @@ namespace App\Message;
  */
 class IndexingMessage
 {
+
+    private const OPERATION_DEFAULT = 'merge';
+    
     public function __construct(
         public readonly string $entityType,
         public readonly array $entityData,
         public readonly array $relationships = [],
         public readonly array $metadata = [],
-        public readonly string $operation = 'merge',
+        public readonly string $operation = self::OPERATION_DEFAULT,
         public readonly array $indexes = [],
         public readonly bool $useLlmFile = false,
         public readonly string $llmFileId = ''
