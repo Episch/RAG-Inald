@@ -67,7 +67,9 @@ class IndexingController
                 relationships: $data->getRelationships(),
                 metadata: $data->getMetadata(),
                 operation: $data->getOperation(),
-                indexes: $data->getIndexes()
+                indexes: $data->getIndexes(),
+                useLlmFile: $data->isUseLlmFile(),
+                llmFileId: $data->getLlmFileId()
             );
             
             $this->bus->dispatch($message);

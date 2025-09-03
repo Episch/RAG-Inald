@@ -60,7 +60,11 @@ class LlmController
             temperature: $data->getTemperature(),
             maxTokens: $data->getMaxTokens(),
             requestId: $requestId,
-            type: 'generate'
+            type: 'generate',
+            useExtractionFile: $data->isUseExtractionFile(),
+            extractionFileId: $data->getExtractionFileId(),
+            saveAsFile: $data->isSaveAsFile(),
+            outputFilename: $data->getOutputFilename()
         );
         
         $this->bus->dispatch($message);

@@ -35,7 +35,11 @@ class ExtractionController
         ]);
         
         // Dispatch message to queue
-        $message = new ExtractorMessage($data->getPath());
+        $message = new ExtractorMessage(
+            path: $data->getPath(),
+            saveAsFile: $data->isSaveAsFile(),
+            outputFilename: $data->getOutputFilename()
+        );
         $this->bus->dispatch($message);
         
         // Increment queue counter and get current count

@@ -11,7 +11,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * Submit documents for asynchronous extraction and processing using Apache Tika, followed by LLM categorization and graph storage.
  */
 #[ApiResource(
-    shortName: 'RAG',
+    shortName: 'ETL DocumentExtraction',
     operations: [
         new Post(
             uriTemplate: '/extraction',
@@ -33,6 +33,14 @@ class Extraction
     )]
     public string $path = ''; // PUBLIC PROPERTY für ApiPlatform - no default for security
 
+    #[Groups(['write', 'read'])]
+    #[Assert\Type('bool')]
+    public bool $saveAsFile = true; // Standardmäßig als Datei speichern
+
+    #[Groups(['write', 'read'])]
+    #[Assert\Length(max: 100)]
+    public string $outputFilename = ''; // Optional: benutzerdefinierter Dateiname
+
     // Getter/Setter optional
     public function getPath(): string
     {
@@ -42,5 +50,25 @@ class Extraction
     public function setPath(string $path): void
     {
         $this->path = $path;
+    }
+
+    public function isSaveAsFile(): bool
+    {
+        return $this->saveAsFile;
+    }
+
+    public function setSaveAsFile(bool $saveAsFile): void
+    {
+        $this->saveAsFile = $saveAsFile;
+    }
+
+    public function getOutputFilename(): string
+    {
+        return $this->outputFilename;
+    }
+
+    public function setOutputFilename(string $outputFilename): void
+    {
+        $this->outputFilename = $outputFilename;
     }
 }

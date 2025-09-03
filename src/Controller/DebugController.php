@@ -8,7 +8,7 @@ use App\Service\Connector\LlmConnector;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 #[ApiResource(
-    shortName: 'Monitoring',
+    shortName: 'AdminMonitoring',
     operations: [
         new Get(
             uriTemplate: '/admin/debug/ollama',

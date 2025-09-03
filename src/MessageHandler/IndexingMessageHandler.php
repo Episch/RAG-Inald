@@ -37,10 +37,13 @@ class IndexingMessageHandler
         ]);
 
         try {
+            // Prepare entity data from LLM file if requested
+            $finalEntityData = $this->prepareFinalEntityData($message);
+            
             // Create the main entity node
             $nodeResult = $this->createOrUpdateNode(
                 $message->entityType,
-                $message->entityData,
+                $finalEntityData,
                 $message->operation
             );
             
@@ -51,7 +54,7 @@ class IndexingMessageHandler
             if (!empty($message->relationships)) {
                 $processedRelationships = $this->processRelationships(
                     $message->entityType,
-                    $message->entityData,
+                    $finalEntityData,
                     $message->relationships
                 );
             }
@@ -341,5 +344,174 @@ class IndexingMessageHandler
         }
         
         return null;
+    }
+
+    /**
+     * Prepare entity data by combining original data with LLM file content if needed
+     */
+    private function prepareFinalEntityData(IndexingMessage $message): array
+    {
+        if (!$message->useLlmFile || empty($message->llmFileId)) {
+            return $message->entityData;
+        }
+
+        // Load LLM response from file
+        $llmData = $this->findLlmFile($message->llmFileId);
+        
+        if ($llmData === null) {
+            $this->logger->warning('LLM file not found, using original entity data only', [
+                'llm_file_id' => $message->llmFileId,
+                'entity_type' => $message->entityType
+            ]);
+            return $message->entityData;
+        }
+
+        // Transform LLM response to Neo4j-compatible structure
+        $neo4jCompatibleData = $this->transformLlmResponseToNeo4jData($llmData);
+        
+        // Merge with original entity data
+        return array_merge($message->entityData, $neo4jCompatibleData);
+    }
+
+    /**
+     * Find and load LLM file content by file ID
+     */
+    private function findLlmFile(string $fileId): ?array
+    {
+        // Search in common LLM output paths
+        $searchPaths = [
+            __DIR__ . '/../../var/llm_output/',
+            __DIR__ . '/../../public/storage/',
+        ];
+
+        foreach ($searchPaths as $searchPath) {
+            if (!is_dir($searchPath)) {
+                continue;
+            }
+
+            $files = glob($searchPath . "*{$fileId}*.json", GLOB_BRACE);
+
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    $content = file_get_contents($file);
+                    $data = json_decode($content, true);
+                    
+                    if (json_last_error() === JSON_ERROR_NONE && isset($data['response'])) {
+                        return $data['response'];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Transform LLM response to Neo4j-compatible data structure
+     */
+    private function transformLlmResponseToNeo4jData(array $llmResponse): array
+    {
+        $neo4jData = [];
+
+        // Handle different LLM response formats
+        if (isset($llmResponse['response']) && is_string($llmResponse['response'])) {
+            // Try to parse the response as JSON
+            $responseData = json_decode($llmResponse['response'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($responseData)) {
+                $llmResponse = $responseData;
+            } else {
+                // If not JSON, store as text content
+                $neo4jData['llm_content'] = $llmResponse['response'];
+                return $neo4jData;
+            }
+        }
+
+        // Extract entities and properties from LLM response
+        $this->extractPropertiesFromArray($llmResponse, $neo4jData, '');
+
+        // Ensure we have essential properties
+        if (!isset($neo4jData['id']) && !isset($neo4jData['name']) && !isset($neo4jData['title'])) {
+            // Generate an ID if none exists
+            $neo4jData['id'] = uniqid('node_');
+        }
+
+        // Clean up data for Neo4j compatibility
+        return $this->cleanNeo4jData($neo4jData);
+    }
+
+    /**
+     * Recursively extract properties from nested arrays
+     */
+    private function extractPropertiesFromArray(array $data, array &$result, string $prefix): void
+    {
+        foreach ($data as $key => $value) {
+            $fullKey = $prefix ? "{$prefix}_{$key}" : $key;
+            
+            if (is_array($value)) {
+                if ($this->isAssociativeArray($value)) {
+                    // Recursive processing for nested objects
+                    $this->extractPropertiesFromArray($value, $result, $fullKey);
+                } else {
+                    // Convert indexed arrays to comma-separated strings
+                    $result[$fullKey] = implode(', ', array_map(function($item) {
+                        return is_string($item) ? $item : json_encode($item);
+                    }, $value));
+                }
+            } else {
+                // Direct value assignment
+                $result[$fullKey] = $this->sanitizeNeo4jValue($value);
+            }
+        }
+    }
+
+    /**
+     * Check if array is associative (not indexed)
+     */
+    private function isAssociativeArray(array $array): bool
+    {
+        return array_keys($array) !== range(0, count($array) - 1);
+    }
+
+    /**
+     * Sanitize value for Neo4j compatibility
+     */
+    private function sanitizeNeo4jValue($value)
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        
+        if (is_numeric($value)) {
+            return is_float($value) ? (float)$value : (int)$value;
+        }
+        
+        if (is_string($value)) {
+            // Remove problematic characters and limit length
+            $sanitized = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $value);
+            return mb_substr($sanitized, 0, 1000); // Limit to 1000 characters
+        }
+        
+        // Convert other types to string
+        return (string)$value;
+    }
+
+    /**
+     * Clean up data structure for Neo4j compatibility
+     */
+    private function cleanNeo4jData(array $data): array
+    {
+        $cleaned = [];
+        
+        foreach ($data as $key => $value) {
+            // Clean up key names for Neo4j
+            $cleanKey = preg_replace('/[^a-zA-Z0-9_]/', '_', $key);
+            $cleanKey = preg_replace('/^[^a-zA-Z_]/', '_', $cleanKey); // Ensure starts with letter or underscore
+            
+            if (!empty($cleanKey) && $value !== null && $value !== '') {
+                $cleaned[$cleanKey] = $value;
+            }
+        }
+        
+        return $cleaned;
     }
 }

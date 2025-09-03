@@ -13,6 +13,8 @@ class IndexingMessage
         public readonly array $relationships = [],
         public readonly array $metadata = [],
         public readonly string $operation = 'merge',
-        public readonly array $indexes = []
+        public readonly array $indexes = [],
+        public readonly bool $useLlmFile = false,
+        public readonly string $llmFileId = ''
     ) {}
 }

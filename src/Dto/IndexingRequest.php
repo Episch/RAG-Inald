@@ -13,7 +13,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * Iindexing various entities/nodes into Neo4j
  */
 #[ApiResource(
-    shortName: 'GraphIndexing',
+    shortName: 'RAG Indexing',
     operations: [
         new Post(
             uriTemplate: '/indexing',
@@ -56,13 +56,23 @@ class IndexingRequest extends AbstractDto
     #[Groups(['write', 'read'])]
     public array $indexes = [];
 
+    #[Groups(['write', 'read'])]
+    #[Assert\Type('bool')]
+    public bool $useLlmFile = false; // Verwendung einer LLM-Datei
+
+    #[Groups(['write', 'read'])]
+    #[Assert\Length(max: 200)]
+    public string $llmFileId = ''; // ID der zu verwendenden LLM-Datei
+
     public function __construct(
         string $entityType = '',
         array $entityData = [],
         array $relationships = [],
         array $metadata = [],
         string $operation = 'merge',
-        array $indexes = []
+        array $indexes = [],
+        bool $useLlmFile = false,
+        string $llmFileId = ''
     ) {
         $this->entityType = $entityType;
         $this->entityData = $entityData;
@@ -70,6 +80,8 @@ class IndexingRequest extends AbstractDto
         $this->metadata = $metadata;
         $this->operation = $operation;
         $this->indexes = $indexes;
+        $this->useLlmFile = $useLlmFile;
+        $this->llmFileId = $llmFileId;
     }
 
     // Getters
@@ -79,6 +91,8 @@ class IndexingRequest extends AbstractDto
     public function getMetadata(): array { return $this->metadata; }
     public function getOperation(): string { return $this->operation; }
     public function getIndexes(): array { return $this->indexes; }
+    public function isUseLlmFile(): bool { return $this->useLlmFile; }
+    public function getLlmFileId(): string { return $this->llmFileId; }
 
     // Setters for flexibility
     public function setEntityType(string $entityType): self 
@@ -114,6 +128,18 @@ class IndexingRequest extends AbstractDto
     public function setIndexes(array $indexes): self 
     { 
         $this->indexes = $indexes; 
+        return $this; 
+    }
+
+    public function setUseLlmFile(bool $useLlmFile): self 
+    { 
+        $this->useLlmFile = $useLlmFile; 
+        return $this; 
+    }
+
+    public function setLlmFileId(string $llmFileId): self 
+    { 
+        $this->llmFileId = $llmFileId; 
         return $this; 
     }
 
@@ -184,7 +210,9 @@ class IndexingRequest extends AbstractDto
             'relationships' => $this->relationships,
             'metadata' => $this->metadata,
             'operation' => $this->operation,
-            'indexes' => $this->indexes
+            'indexes' => $this->indexes,
+            'useLlmFile' => $this->useLlmFile,
+            'llmFileId' => $this->llmFileId
         ];
     }
 }

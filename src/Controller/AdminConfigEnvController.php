@@ -7,7 +7,7 @@ use ApiPlatform\Metadata\Get;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 #[ApiResource(
-    shortName: 'Monitoring',
+    shortName: 'AdminMonitoring',
     operations: [
         new Get(
             uriTemplate: '/admin/config/env',

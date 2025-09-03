@@ -32,7 +32,7 @@ Der `LlmConnector` ist vollständig implementiert und erweitert deine RAG-Pipeli
 - **Graceful Degradation**: System funktioniert auch bei LLM-Ausfällen
 
 ### ✅ RAG Pipeline Enhancement
-- **ExtractorMessageHandler erweitert**: Automatische LLM-Kategorisierung nach Tika-Extraktion
+- **ExtractorMessageHandler fokussiert**: Nur Tika-Extraktion und Prompt-Vorbereitung
 - **Prompt Integration**: Nahtlose Verbindung zu deinem bestehenden Prompt-System
 - **Error Recovery**: Robuste Fehlerbehandlung ohne Pipeline-Unterbrechung
 

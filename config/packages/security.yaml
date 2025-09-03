@@ -10,7 +10,7 @@ security:
             memory:
                 users:
                     admin:
-                        password: '$2y$13$jxGxc/PbDZlByYWe.7KPn.JOMLeFkR5Wf2HNV6m8C8R2I2qhgYh3a' # Password: admin123
+                        password: '$2y$13$q.neXcwn9B4gRrv5bZpOw.j5ck/u6jVppVu7x4fg/wpAZpNzSx5sa' # Password: admin123
                         roles: ['ROLE_ADMIN']
                     debug:
                         password: '$2y$13$B3ZhE7vCmzE8L2A3k9RDpOJ6xD4N8g/2H4wvF5CxW1PvL2q3K7s4a' # Password: debug456 

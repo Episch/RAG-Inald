@@ -128,12 +128,7 @@ services:
         arguments:
             $configManager: '@App\Service\ConfigurationManager'
             
-    App\Controller\AdminConfigTestController:
-        public: true
-        arguments:
-            $configManager: '@App\Service\ConfigurationManager'
-            $connectorFactory: '@App\Service\Factory\ConnectorFactory'
-            
+
     App\Controller\AdminConfigEnvController:
         public: true
             
@@ -142,3 +137,16 @@ services:
         arguments:
             $asyncTransport: '@messenger.transport.async'
             $logger: '@logger'
+            
+    # File Storage Service
+    App\Service\FileStorageService:
+        arguments:
+            $documentStoragePath: '%app.document_storage_path%'
+            $llmOutputPath: '%kernel.project_dir%/var/llm_output/'
+            $logger: '@logger'
+            
+    # Admin File Storage Controller
+    App\Controller\FileStorageController:
+        public: true
+        arguments:
+            $fileStorageService: '@App\Service\FileStorageService'

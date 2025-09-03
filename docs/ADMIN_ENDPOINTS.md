@@ -83,45 +83,7 @@ curl -u admin:admin123 http://localhost:8000/api/admin/debug/ollama
 }
 ```
 
-### 3. **🧪 Config Test**
-**`GET /api/admin/config/test`**
-
-**Purpose:** Live service connectivity testing
-
-**Response Example:**
-```json
-{
-  "overall_success": true,
-  "configuration_valid": true,
-  "configuration_errors": [],
-  "connector_tests": {
-    "tika": {
-      "success": true,
-      "response_time_ms": 45,
-      "status_code": 200
-    },
-    "neo4j": {
-      "success": true,
-      "response_time_ms": 23,
-      "status_code": 200
-    },
-    "ollama": {
-      "success": false,
-      "error": "Connection refused",
-      "response_time_ms": 5000
-    }
-  },
-  "recommendations": [
-    {
-      "type": "warning",
-      "message": "Service ollama is not accessible: Connection refused",
-      "action": "Check if ollama service is running and accessible"
-    }
-  ]
-}
-```
-
-### 4. **🌍 Environment Info**
+### 3. **🌍 Environment Info**
 **`GET /api/admin/config/env`**
 
 **Purpose:** Environment variables and system information
@@ -145,6 +107,38 @@ curl -u admin:admin123 http://localhost:8000/api/admin/debug/ollama
 }
 ```
 
+### 4. **📁 File Management**
+**`GET /api/admin/files`**
+
+**Purpose:** List and manage stored extraction and LLM response files
+
+**Response Example:**
+```json
+{
+  "status": "success",
+  "count": 3,
+  "files": [
+    {
+      "file_id": "ext_67890abc_2024-01-16_14-30-25",
+      "type": "extraction",
+      "created_at": "2024-01-16T14:30:25+00:00",
+      "size": 15420
+    },
+    {
+      "file_id": "llm_12345def_2024-01-16_15-00-45", 
+      "type": "llm_response",
+      "created_at": "2024-01-16T15:00:45+00:00",
+      "size": 8932
+    }
+  ]
+}
+```
+
+**Additional Endpoints:**
+- **`GET /api/admin/files/{fileId}`** - Get specific file data
+- **`GET /api/admin/files/{fileId}/content`** - Get file content only
+- **`DELETE /api/admin/files/{fileId}`** - Delete specific file
+
 ## 🚀 Usage Examples
 
 ### **1. Quick Health Check:**
@@ -153,16 +147,22 @@ curl -u admin:admin123 http://localhost:8000/api/admin/debug/ollama
 curl -u admin:admin123 http://localhost:8000/api/admin/debug/ollama | jq '.ollama_debug.recommendations'
 ```
 
-### **2. Service Connectivity Test:**
-```bash
-# Test all services
-curl -u admin:admin123 http://localhost:8000/api/admin/config/test | jq '.connector_tests'
-```
-
-### **3. Environment Audit:**
+### **2. Environment Audit:**
 ```bash
 # Check environment configuration
 curl -u admin:admin123 http://localhost:8000/api/admin/config/env | jq '.environment_variables'
+```
+
+### **3. File Management:**
+```bash
+# List all stored files
+curl -u admin:admin123 http://localhost:8000/api/admin/files | jq '.files'
+
+# Get specific file data
+curl -u admin:admin123 http://localhost:8000/api/admin/files/ext_67890abc_2024-01-16_14-30-25
+
+# Clean up old files
+curl -u admin:admin123 -X DELETE http://localhost:8000/api/admin/files/old_file_id
 ```
 
 ## 🔐 Security Features
@@ -229,18 +229,19 @@ DEBUG_PASSWORD_HASH='$2y$13$...'
 | Use Case | Endpoint | Purpose |
 |----------|----------|---------|
 | **LLM Not Working** | `/admin/debug/ollama` | Diagnose Ollama connectivity |
-| **Service Outage** | `/admin/config/test` | Test all service connections |
 | **Deployment Check** | `/admin/config/status` | Validate configuration |
 | **Security Audit** | `/admin/config/env` | Review environment setup |
-| **Performance Issues** | `/admin/config/test` | Check response times |
+| **File Management** | `/admin/files` | Monitor and manage stored files |
+| **Storage Cleanup** | `/admin/files/{id}` (DELETE) | Remove old extraction/LLM files |
 
 ## 🛡️ Best Practices
 
-1. **Regular Monitoring** - Check `/admin/config/test` periodically
+1. **Regular Monitoring** - Check `/admin/config/status` periodically
 2. **Pre-deployment** - Validate `/admin/config/status` before releases  
 3. **Troubleshooting** - Start with `/admin/debug/ollama` for LLM issues
-4. **Security** - Rotate admin passwords regularly
-5. **Documentation** - Keep credentials secure and documented
+4. **File Management** - Use `/admin/files` to monitor storage usage and clean up old files
+5. **Security** - Rotate admin passwords regularly
+6. **Documentation** - Keep credentials secure and documented
 
 ---
 

@@ -13,7 +13,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * Generate text responses using local LLM (Ollama) with customizable parameters including temperature, max tokens, and model selection. Supports both async and sync processing.
  */
 #[ApiResource(
-    shortName: 'LLM',
+    shortName: 'LLM Generation',
     operations: [
         new Post(
             uriTemplate: '/llm/generate',
@@ -55,6 +55,22 @@ class LlmPrompt extends AbstractDto
     #[Groups(['write', 'read'])]
     #[Assert\Range(min: 1, max: 8192)]
     public int $maxTokens = 2048;
+
+    #[Groups(['write', 'read'])]
+    #[Assert\Type('bool')]
+    public bool $useExtractionFile = false; // Verwendung einer Extraction-Datei
+
+    #[Groups(['write', 'read'])]
+    #[Assert\Length(max: 200)]
+    public string $extractionFileId = ''; // ID der zu verwendenden Extraction-Datei
+
+    #[Groups(['write', 'read'])]
+    #[Assert\Type('bool')]
+    public bool $saveAsFile = true; // Ergebnis als Datei speichern
+
+    #[Groups(['write', 'read'])]
+    #[Assert\Length(max: 100)]
+    public string $outputFilename = ''; // Optional: benutzerdefinierter Dateiname
 
     // Getters and setters
     public function getPrompt(): string
@@ -105,5 +121,45 @@ class LlmPrompt extends AbstractDto
     public function setMaxTokens(int $maxTokens): void
     {
         $this->maxTokens = $maxTokens;
+    }
+
+    public function isUseExtractionFile(): bool
+    {
+        return $this->useExtractionFile;
+    }
+
+    public function setUseExtractionFile(bool $useExtractionFile): void
+    {
+        $this->useExtractionFile = $useExtractionFile;
+    }
+
+    public function getExtractionFileId(): string
+    {
+        return $this->extractionFileId;
+    }
+
+    public function setExtractionFileId(string $extractionFileId): void
+    {
+        $this->extractionFileId = $extractionFileId;
+    }
+
+    public function isSaveAsFile(): bool
+    {
+        return $this->saveAsFile;
+    }
+
+    public function setSaveAsFile(bool $saveAsFile): void
+    {
+        $this->saveAsFile = $saveAsFile;
+    }
+
+    public function getOutputFilename(): string
+    {
+        return $this->outputFilename;
+    }
+
+    public function setOutputFilename(string $outputFilename): void
+    {
+        $this->outputFilename = $outputFilename;
     }
 }

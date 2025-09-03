@@ -49,17 +49,37 @@ class LlmMessageHandler
         ]);
 
         try {
-            // Check if prompt needs chunking (for very large prompts)
-            $response = $this->processPrompt($message);
+            // Load extraction file content if requested
+            $finalPrompt = $this->prepareFinalPrompt($message);
             
-            // Save response to file system
-            $outputFile = $this->saveResponse($message, $response);
+            // Create a modified message with the final prompt
+            $modifiedMessage = new LlmMessage(
+                prompt: $finalPrompt,
+                model: $message->model,
+                temperature: $message->temperature,
+                maxTokens: $message->maxTokens,
+                requestId: $message->requestId,
+                type: $message->type,
+                useExtractionFile: $message->useExtractionFile,
+                extractionFileId: $message->extractionFileId,
+                saveAsFile: $message->saveAsFile,
+                outputFilename: $message->outputFilename
+            );
+            
+            // Check if prompt needs chunking (for very large prompts)
+            $response = $this->processPrompt($modifiedMessage);
+            
+            // Save response to file system if requested
+            $outputFile = null;
+            if ($message->saveAsFile) {
+                $outputFile = $this->saveResponse($modifiedMessage, $response);
+            }
             
             $executionTime = round(microtime(true) - $startTime, 3);
             
             $this->logger->info('LLM processing completed', [
                 'request_id' => $message->requestId,
-                'output_file' => basename($outputFile),
+                'output_file' => $outputFile ? basename($outputFile) : 'not_saved',
                 'model' => $message->model,
                 'execution_time' => $executionTime . 's'
             ]);
@@ -93,7 +113,10 @@ class LlmMessageHandler
             'num_predict' => $message->maxTokens,
         ];
 
-        switch ($message->type) {
+        // Determine the processing type - use categorize if extraction file is being used
+        $processingType = $message->useExtractionFile ? 'categorize' : $message->type;
+        
+        switch ($processingType) {
             case 'categorize':
                 $response = $this->llmConnector->promptForCategorization($message->prompt, $message->model);
                 break;
@@ -125,13 +148,19 @@ class LlmMessageHandler
 
     private function saveResponse(LlmMessage $message, array $response): string
     {
+        // Generate unique file ID for this LLM response
+        $llmFileId = 'llm_' . uniqid() . '_' . date('Y-m-d_H-i-s');
         $timestamp = date('Y-m-d_H-i-s');
         $requestId = $message->requestId ?: uniqid();
-        $filename = "llm_response_{$message->model}_{$message->type}_{$timestamp}_{$requestId}.json";
+        
+        // Use categorization type if working with extraction file
+        $responseType = $message->useExtractionFile ? 'categorization' : $message->type;
+        $filename = $message->outputFilename ?: "llm_{$responseType}_{$llmFileId}.json";
         
         $outputFile = $this->outputPath . $filename;
         
         $outputData = [
+            'file_id' => $llmFileId,
             'request' => [
                 'prompt' => mb_substr($message->prompt, 0, 500) . '...', // Truncate for logging
                 'model' => $message->model,
@@ -139,6 +168,8 @@ class LlmMessageHandler
                 'temperature' => $message->temperature,
                 'max_tokens' => $message->maxTokens,
                 'request_id' => $requestId,
+                'use_extraction_file' => $message->useExtractionFile,
+                'extraction_file_id' => $message->extractionFileId,
                 'timestamp' => date('c'),
             ],
             'response' => $response,
@@ -151,5 +182,90 @@ class LlmMessageHandler
         }
         
         return $outputFile;
+    }
+
+    /**
+     * Prepare the final prompt by combining user prompt with extraction file content if needed
+     */
+    private function prepareFinalPrompt(LlmMessage $message): string
+    {
+        if (!$message->useExtractionFile || empty($message->extractionFileId)) {
+            return $message->prompt;
+        }
+
+        // Find extraction file by ID
+        $extractionContent = $this->findExtractionFile($message->extractionFileId);
+        
+        if ($extractionContent === null) {
+            $this->logger->warning('Extraction file not found, using original prompt only', [
+                'extraction_file_id' => $message->extractionFileId,
+                'request_id' => $message->requestId
+            ]);
+            return $message->prompt;
+        }
+
+        // Combine user prompt with extraction content
+        if (strpos($extractionContent, 'Benutzer-Anfrage:') !== false || 
+            strpos($extractionContent, 'Extraktions-Daten:') !== false) {
+            // This looks like a prepared prompt, use it directly with user modification
+            $combinedPrompt = str_replace(
+                ['Benutzer-Anfrage:', 'Analysiere'],
+                ["Benutzer-Anfrage: {$message->prompt}", $message->prompt ?: 'Analysiere'],
+                $extractionContent
+            );
+        } else {
+            // Raw extraction data, create structured prompt
+            $combinedPrompt = "Benutzer-Anfrage: {$message->prompt}\n\n";
+            $combinedPrompt .= "Extraktions-Daten:\n{$extractionContent}\n\n";
+            $combinedPrompt .= "Bitte antworte basierend auf den bereitgestellten Extraktions-Daten und der Benutzer-Anfrage.";
+        }
+
+        return $combinedPrompt;
+    }
+
+    /**
+     * Find and load extraction file content by file ID
+     */
+    private function findExtractionFile(string $fileId): ?string
+    {
+        // Search in common extraction paths
+        $searchPaths = [
+            $this->outputPath . '../public/storage/',
+            __DIR__ . '/../../public/storage/',
+            __DIR__ . '/../../var/llm_output/'
+        ];
+
+        foreach ($searchPaths as $searchPath) {
+            if (!is_dir($searchPath)) {
+                continue;
+            }
+
+            $files = glob($searchPath . "**/*{$fileId}*.json", GLOB_BRACE);
+            if (empty($files)) {
+                $files = glob($searchPath . "*{$fileId}*.json", GLOB_BRACE);
+            }
+
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    $content = file_get_contents($file);
+                    $data = json_decode($content, true);
+                    
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        // Check for both old and new format
+                        if (isset($data['tika_extraction'])) {
+                            // Old format with LLM response
+                            return is_string($data['tika_extraction']) 
+                                ? $data['tika_extraction'] 
+                                : json_encode($data['tika_extraction'], JSON_PRETTY_PRINT);
+                        } elseif (isset($data['prepared_prompt'])) {
+                            // New format with prepared prompt (from refactored ExtractorMessageHandler)
+                            return $data['prepared_prompt'];
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }
