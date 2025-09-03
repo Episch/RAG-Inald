@@ -15,7 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Secured file storage management for admin users
  */
 #[ApiResource(
-    shortName: 'AdminFileStorage',
+    shortName: 'FileStorage',
     operations: [
         new GetCollection(
             uriTemplate: '/admin/files',

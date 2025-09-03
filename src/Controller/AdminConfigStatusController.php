@@ -9,7 +9,7 @@ use App\Service\ConfigurationManager;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 #[ApiResource(
-    shortName: 'AdminMonitoring',
+    shortName: 'Monitoring',
     operations: [
         new Get(
             uriTemplate: '/admin/config/status',
