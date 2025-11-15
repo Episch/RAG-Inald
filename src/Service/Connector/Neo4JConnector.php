@@ -173,7 +173,7 @@ class Neo4JConnector implements ConnectorInterface
      */
     public function executeCypherQuery(string $cypher, array $parameters = []): array
     {
-        $url = $this->neo4jUrl . '/db/data/cypher';
+        $url = $this->neo4jBaseUrl . '/db/data/cypher';
         
         $requestData = [
             'query' => $cypher,
@@ -280,5 +280,281 @@ class Neo4JConnector implements ConnectorInterface
         } catch (TransportExceptionInterface $e) {
             throw new \RuntimeException("Failed to search Neo4J index: " . $e->getMessage(), 0, $e);
         }
+    }
+
+    // ========================================================================
+    // IRREB-SPEZIFISCHE METHODEN
+    // ========================================================================
+
+    /**
+     * Erstellt eine OWNED_BY-Beziehung zwischen Requirement und Role
+     * 
+     * @param string $requirementId ID des Requirements
+     * @param string $roleId ID der Rolle
+     * @return array Query-Ergebnis
+     */
+    public function createOwnedByRelationship(string $requirementId, string $roleId): array
+    {
+        $cypher = "
+            MATCH (req:Requirement {id: \$req_id})
+            MATCH (role:Role {id: \$role_id})
+            MERGE (req)-[r:OWNED_BY]->(role)
+            RETURN req, role, r
+        ";
+
+        return $this->executeCypherQuery($cypher, [
+            'req_id' => $requirementId,
+            'role_id' => $roleId
+        ]);
+    }
+
+    /**
+     * Erstellt eine APPLIES_TO-Beziehung zwischen Requirement und Environment
+     * 
+     * @param string $requirementId ID des Requirements
+     * @param string $environmentId ID der Umgebung
+     * @return array Query-Ergebnis
+     */
+    public function createAppliesToRelationship(string $requirementId, string $environmentId): array
+    {
+        $cypher = "
+            MATCH (req:Requirement {id: \$req_id})
+            MATCH (env:Environment {id: \$env_id})
+            MERGE (req)-[r:APPLIES_TO]->(env)
+            RETURN req, env, r
+        ";
+
+        return $this->executeCypherQuery($cypher, [
+            'req_id' => $requirementId,
+            'env_id' => $environmentId
+        ]);
+    }
+
+    /**
+     * Erstellt eine SUPPORTS-Beziehung zwischen Requirement und Business
+     * 
+     * @param string $requirementId ID des Requirements
+     * @param string $businessId ID des Business-Kontexts
+     * @return array Query-Ergebnis
+     */
+    public function createSupportsRelationship(string $requirementId, string $businessId): array
+    {
+        $cypher = "
+            MATCH (req:Requirement {id: \$req_id})
+            MATCH (biz:Business {id: \$biz_id})
+            MERGE (req)-[r:SUPPORTS]->(biz)
+            RETURN req, biz, r
+        ";
+
+        return $this->executeCypherQuery($cypher, [
+            'req_id' => $requirementId,
+            'biz_id' => $businessId
+        ]);
+    }
+
+    /**
+     * Erstellt eine DEPENDS_ON-Beziehung zwischen Requirement und Infrastructure
+     * 
+     * @param string $requirementId ID des Requirements
+     * @param string $infrastructureId ID der Infrastruktur
+     * @return array Query-Ergebnis
+     */
+    public function createDependsOnRelationship(string $requirementId, string $infrastructureId): array
+    {
+        $cypher = "
+            MATCH (req:Requirement {id: \$req_id})
+            MATCH (infra:Infrastructure {id: \$infra_id})
+            MERGE (req)-[r:DEPENDS_ON]->(infra)
+            RETURN req, infra, r
+        ";
+
+        return $this->executeCypherQuery($cypher, [
+            'req_id' => $requirementId,
+            'infra_id' => $infrastructureId
+        ]);
+    }
+
+    /**
+     * Erstellt eine USES_SOFTWARE-Beziehung zwischen Requirement und SoftwareApplication
+     * 
+     * @param string $requirementId ID des Requirements
+     * @param string $softwareId ID der Software-Anwendung
+     * @return array Query-Ergebnis
+     */
+    public function createUsesSoftwareRelationship(string $requirementId, string $softwareId): array
+    {
+        $cypher = "
+            MATCH (req:Requirement {id: \$req_id})
+            MATCH (sw:SoftwareApplication {id: \$sw_id})
+            MERGE (req)-[r:USES_SOFTWARE]->(sw)
+            RETURN req, sw, r
+        ";
+
+        return $this->executeCypherQuery($cypher, [
+            'req_id' => $requirementId,
+            'sw_id' => $softwareId
+        ]);
+    }
+
+    /**
+     * Erstellt alle IRREB-Beziehungen für ein Requirement auf einmal
+     * 
+     * @param string $requirementId ID des Requirements
+     * @param array $relationships Assoziatives Array mit Beziehungen
+     *        ['roles' => ['ROLE-001'], 'environments' => ['ENV-001'], ...]
+     * @return array Statistiken über erstellte Beziehungen
+     */
+    public function createAllRequirementRelationships(string $requirementId, array $relationships): array
+    {
+        $stats = [
+            'owned_by' => 0,
+            'applies_to' => 0,
+            'supports' => 0,
+            'depends_on' => 0,
+            'uses_software' => 0,
+            'errors' => []
+        ];
+
+        // OWNED_BY zu Roles
+        if (!empty($relationships['roles'])) {
+            foreach ($relationships['roles'] as $roleId) {
+                try {
+                    $this->createOwnedByRelationship($requirementId, $roleId);
+                    $stats['owned_by']++;
+                } catch (\Exception $e) {
+                    $stats['errors'][] = "OWNED_BY -> {$roleId}: " . $e->getMessage();
+                }
+            }
+        }
+
+        // APPLIES_TO zu Environments
+        if (!empty($relationships['environments'])) {
+            foreach ($relationships['environments'] as $envId) {
+                try {
+                    $this->createAppliesToRelationship($requirementId, $envId);
+                    $stats['applies_to']++;
+                } catch (\Exception $e) {
+                    $stats['errors'][] = "APPLIES_TO -> {$envId}: " . $e->getMessage();
+                }
+            }
+        }
+
+        // SUPPORTS zu Businesses
+        if (!empty($relationships['businesses'])) {
+            foreach ($relationships['businesses'] as $bizId) {
+                try {
+                    $this->createSupportsRelationship($requirementId, $bizId);
+                    $stats['supports']++;
+                } catch (\Exception $e) {
+                    $stats['errors'][] = "SUPPORTS -> {$bizId}: " . $e->getMessage();
+                }
+            }
+        }
+
+        // DEPENDS_ON zu Infrastructures
+        if (!empty($relationships['infrastructures'])) {
+            foreach ($relationships['infrastructures'] as $infraId) {
+                try {
+                    $this->createDependsOnRelationship($requirementId, $infraId);
+                    $stats['depends_on']++;
+                } catch (\Exception $e) {
+                    $stats['errors'][] = "DEPENDS_ON -> {$infraId}: " . $e->getMessage();
+                }
+            }
+        }
+
+        // USES_SOFTWARE zu SoftwareApplications
+        if (!empty($relationships['softwareApplications'])) {
+            foreach ($relationships['softwareApplications'] as $swId) {
+                try {
+                    $this->createUsesSoftwareRelationship($requirementId, $swId);
+                    $stats['uses_software']++;
+                } catch (\Exception $e) {
+                    $stats['errors'][] = "USES_SOFTWARE -> {$swId}: " . $e->getMessage();
+                }
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Findet alle Requirements mit ihren IRREB-Beziehungen
+     * 
+     * @param int $limit Maximale Anzahl Requirements
+     * @return array Liste von Requirements mit Beziehungen
+     */
+    public function findRequirementsWithRelationships(int $limit = 100): array
+    {
+        $cypher = "
+            MATCH (req:Requirement)
+            OPTIONAL MATCH (req)-[r1:OWNED_BY]->(role:Role)
+            OPTIONAL MATCH (req)-[r2:APPLIES_TO]->(env:Environment)
+            OPTIONAL MATCH (req)-[r3:SUPPORTS]->(biz:Business)
+            OPTIONAL MATCH (req)-[r4:DEPENDS_ON]->(infra:Infrastructure)
+            OPTIONAL MATCH (req)-[r5:USES_SOFTWARE]->(sw:SoftwareApplication)
+            RETURN req,
+                   collect(DISTINCT role) as roles,
+                   collect(DISTINCT env) as environments,
+                   collect(DISTINCT biz) as businesses,
+                   collect(DISTINCT infra) as infrastructures,
+                   collect(DISTINCT sw) as software_applications
+            LIMIT \$limit
+        ";
+
+        return $this->executeCypherQuery($cypher, ['limit' => $limit]);
+    }
+
+    /**
+     * Erstellt Indizes für IRREB-Entitäten zur Performance-Optimierung
+     * 
+     * @return array Ergebnis der Index-Erstellung
+     */
+    public function createIrrebIndexes(): array
+    {
+        $indexes = [
+            "CREATE INDEX requirement_id_index IF NOT EXISTS FOR (n:Requirement) ON (n.id)",
+            "CREATE INDEX requirement_name_index IF NOT EXISTS FOR (n:Requirement) ON (n.name)",
+            "CREATE INDEX requirement_type_index IF NOT EXISTS FOR (n:Requirement) ON (n.type)",
+            "CREATE INDEX requirement_priority_index IF NOT EXISTS FOR (n:Requirement) ON (n.priority)",
+            "CREATE INDEX role_id_index IF NOT EXISTS FOR (n:Role) ON (n.id)",
+            "CREATE INDEX environment_id_index IF NOT EXISTS FOR (n:Environment) ON (n.id)",
+            "CREATE INDEX business_id_index IF NOT EXISTS FOR (n:Business) ON (n.id)",
+            "CREATE INDEX infrastructure_id_index IF NOT EXISTS FOR (n:Infrastructure) ON (n.id)",
+            "CREATE INDEX software_id_index IF NOT EXISTS FOR (n:SoftwareApplication) ON (n.id)"
+        ];
+
+        $results = [];
+        foreach ($indexes as $index) {
+            try {
+                $results[] = $this->executeCypherQuery($index, []);
+            } catch (\Exception $e) {
+                $results[] = ['error' => $e->getMessage(), 'query' => $index];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Löscht alle IRREB-Daten aus Neo4j (Vorsicht!)
+     * 
+     * @param bool $confirm Sicherheitsbestätigung
+     * @return array Statistiken über gelöschte Nodes und Relationships
+     */
+    public function deleteAllIrrebData(bool $confirm = false): array
+    {
+        if (!$confirm) {
+            throw new \RuntimeException('Deletion must be confirmed with $confirm = true');
+        }
+
+        $cypher = "
+            MATCH (n)
+            WHERE n:Requirement OR n:Role OR n:Environment OR n:Business OR n:Infrastructure OR n:SoftwareApplication
+            DETACH DELETE n
+            RETURN count(n) as deleted_count
+        ";
+
+        return $this->executeCypherQuery($cypher, []);
     }
 }

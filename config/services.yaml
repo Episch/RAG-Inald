@@ -162,3 +162,36 @@ services:
         arguments:
             $queueStats: '@App\Service\QueueStatsService'
             $redisConnector: '@App\Service\Connector\RedisConnector'
+
+    # ========================================================================
+    # REQUIREMENTS EXTRACTION PIPELINE (IRREB + schema.org)
+    # ========================================================================
+
+    # TOON Formatter Service (Token-optimiertes Format)
+    App\Service\ToonFormatterService: ~
+
+    # Requirements Extraction Service
+    App\Service\RequirementsExtractionService:
+        arguments:
+            $tikaConnector: '@App\Service\Connector\TikaConnector'
+            $llmConnector: '@App\Service\Connector\LlmConnector'
+            $neo4jConnector: '@App\Service\Connector\Neo4JConnector'
+            $tokenChunker: '@App\Service\TokenChunker'
+            $toonFormatter: '@App\Service\ToonFormatterService'
+            $logger: '@logger'
+
+    # Requirements Message Handler
+    App\MessageHandler\RequirementsMessageHandler:
+        arguments:
+            $extractionService: '@App\Service\RequirementsExtractionService'
+            $queueStats: '@App\Service\QueueStatsService'
+            $logger: '@logger'
+            $outputPath: '%kernel.project_dir%/var/requirements_output/'
+        tags: ['messenger.message_handler']
+
+    # Process Requirements Command
+    App\Command\ProcessRequirementsCommand:
+        arguments:
+            $extractionService: '@App\Service\RequirementsExtractionService'
+            $messageBus: '@messenger.default_bus'
+        tags: ['console.command']
