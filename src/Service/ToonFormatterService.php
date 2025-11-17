@@ -3,266 +3,59 @@
 namespace App\Service;
 
 use App\Dto\Requirements\RequirementsGraphDto;
+use HelgeSverre\Toon\Toon;
+use HelgeSverre\Toon\IndentStyle;
 
 /**
  * TOON (Token-Oriented Object Notation) Formatter Service
  * 
+ * Wrapper um die professionelle helgesverre/toon-php Library.
  * Konvertiert Requirements-Daten zu/von TOON-Format für optimale LLM-Performance.
  * TOON spart 30-40% Tokens gegenüber JSON bei tabellarischen Daten.
  * 
- * @link https://github.com/toon-format/toon
+ * @link https://github.com/HelgeSverre/toon-php
+ * @link https://github.com/toon-format/spec
  */
 class ToonFormatterService
 {
     /**
-     * Konvertiert Requirements-Graph zu TOON-Format
+     * Konvertiert Requirements-Graph zu TOON-Format (kompakt)
      */
     public function encodeRequirementsGraph(RequirementsGraphDto $graph): string
     {
-        $toon = [];
-
-        // Requirements
-        if (!empty($graph->requirements)) {
-            $toon[] = $this->encodeTable(
-                'requirements',
-                array_map(fn($r) => is_array($r) ? $r : $r->toArray(), $graph->requirements),
-                ['id', 'name', 'description', 'type', 'priority', 'status', 'source']
-            );
-        }
-
-        // Roles
-        if (!empty($graph->roles)) {
-            $toon[] = $this->encodeTable(
-                'roles',
-                array_map(fn($r) => is_array($r) ? $r : $r->toArray(), $graph->roles),
-                ['id', 'name', 'description', 'level', 'department']
-            );
-        }
-
-        // Environments
-        if (!empty($graph->environments)) {
-            $toon[] = $this->encodeTable(
-                'environments',
-                array_map(fn($e) => is_array($e) ? $e : $e->toArray(), $graph->environments),
-                ['id', 'name', 'type', 'description', 'location']
-            );
-        }
-
-        // Businesses
-        if (!empty($graph->businesses)) {
-            $toon[] = $this->encodeTable(
-                'businesses',
-                array_map(fn($b) => is_array($b) ? $b : $b->toArray(), $graph->businesses),
-                ['id', 'name', 'goal', 'objective']
-            );
-        }
-
-        // Infrastructures
-        if (!empty($graph->infrastructures)) {
-            $toon[] = $this->encodeTable(
-                'infrastructures',
-                array_map(fn($i) => is_array($i) ? $i : $i->toArray(), $graph->infrastructures),
-                ['id', 'name', 'type', 'description', 'provider']
-            );
-        }
-
-        // Software Applications
-        if (!empty($graph->softwareApplications)) {
-            $toon[] = $this->encodeTable(
-                'softwareApplications',
-                array_map(fn($s) => is_array($s) ? $s : $s->toArray(), $graph->softwareApplications),
-                ['id', 'name', 'version', 'operatingSystem', 'category']
-            );
-        }
-
-        // Relationships
-        if (!empty($graph->relationships)) {
-            $toon[] = $this->encodeTable(
-                'relationships',
-                $graph->relationships,
-                ['type', 'source', 'target']
-            );
-        }
-
-        return implode("\n\n", $toon);
+        $data = $this->prepareGraphData($graph);
+        
+        // Nutze kompaktes Format für LLM-Prompts (spart Tokens)
+        return toon_compact($data);
     }
 
     /**
-     * Encodiert eine Tabelle im TOON-Format
-     * 
-     * Format: name[N]{field1,field2}:
-     *           value1,value2
-     *           value3,value4
+     * Konvertiert beliebige Daten zu TOON (kompakt)
      */
-    private function encodeTable(string $name, array $items, array $fields): string
+    public function encode(array $data): string
     {
-        if (empty($items)) {
-            return "{$name}[0]:";
-        }
-
-        $count = count($items);
-        $fieldsStr = implode(',', $fields);
-        $lines = ["{$name}[{$count}]{{$fieldsStr}}:"];
-
-        foreach ($items as $item) {
-            $values = [];
-            foreach ($fields as $field) {
-                $value = $item[$field] ?? '';
-                $values[] = $this->escapeValue($value);
-            }
-            $lines[] = '  ' . implode(',', $values);
-        }
-
-        return implode("\n", $lines);
+        return toon_compact($data);
     }
 
     /**
-     * Escaped einen Wert für TOON-Format
+     * Konvertiert beliebige Daten zu TOON (lesbar mit 2 Spaces)
      */
-    private function escapeValue($value): string
+    public function encodeReadable(array $data): string
     {
-        if ($value === null || $value === '') {
-            return '';
-        }
-
-        // Konvertiere zu String
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-
-        if (is_numeric($value)) {
-            return (string) $value;
-        }
-
-        if (is_array($value)) {
-            // Arrays als JSON in Quotes
-            return '"' . str_replace('"', '""', json_encode($value)) . '"';
-        }
-
-        $str = (string) $value;
-
-        // Quote wenn nötig (enthält Komma, Newline, oder startet mit Quote)
-        if (str_contains($str, ',') || 
-            str_contains($str, "\n") || 
-            str_contains($str, '"') ||
-            preg_match('/^\s|\s$/', $str)) {
-            // Escape Quotes mit doppelten Quotes
-            $escaped = str_replace('"', '""', $str);
-            return '"' . $escaped . '"';
-        }
-
-        return $str;
+        return toon_readable($data);
     }
 
     /**
      * Parsed TOON-Format zurück zu Array-Struktur
-     * 
-     * Simplified Parser für Requirements-Daten
      */
     public function decode(string $toon): array
     {
-        $result = [
-            'requirements' => [],
-            'roles' => [],
-            'environments' => [],
-            'businesses' => [],
-            'infrastructures' => [],
-            'softwareApplications' => [],
-            'relationships' => []
-        ];
-
-        $lines = explode("\n", $toon);
-        $currentTable = null;
-        $currentFields = [];
-
-        foreach ($lines as $line) {
-            // Skip leere Zeilen
-            if (trim($line) === '') {
-                continue;
-            }
-
-            // Header-Zeile: name[N]{fields}:
-            if (preg_match('/^(\w+)\[(\d+)\]\{([^}]+)\}:$/', $line, $matches)) {
-                $currentTable = $matches[1];
-                $currentFields = explode(',', $matches[3]);
-                continue;
-            }
-
-            // Daten-Zeile
-            if ($currentTable && preg_match('/^\s\s(.+)$/', $line, $matches)) {
-                $values = $this->parseRow($matches[1]);
-                
-                if (count($values) === count($currentFields)) {
-                    $item = array_combine($currentFields, $values);
-                    $result[$currentTable][] = $item;
-                }
-            }
+        try {
+            return toon_decode($toon);
+        } catch (\Exception $e) {
+            // Fallback zu lenient parsing
+            return toon_decode_lenient($toon);
         }
-
-        return $result;
-    }
-
-    /**
-     * Parsed eine TOON-Row (comma-separated mit Quote-Support)
-     */
-    private function parseRow(string $row): array
-    {
-        $values = [];
-        $current = '';
-        $inQuotes = false;
-        $length = strlen($row);
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $row[$i];
-
-            if ($char === '"') {
-                // Check für escaped Quote ("")
-                if ($inQuotes && $i + 1 < $length && $row[$i + 1] === '"') {
-                    $current .= '"';
-                    $i++; // Skip nächstes Quote
-                } else {
-                    $inQuotes = !$inQuotes;
-                }
-            } elseif ($char === ',' && !$inQuotes) {
-                $values[] = $this->unescapeValue($current);
-                $current = '';
-            } else {
-                $current .= $char;
-            }
-        }
-
-        // Letzter Wert
-        $values[] = $this->unescapeValue($current);
-
-        return $values;
-    }
-
-    /**
-     * Un-escaped einen TOON-Wert
-     */
-    private function unescapeValue(string $value): string|int|float|bool|null
-    {
-        $trimmed = trim($value);
-
-        // Empty
-        if ($trimmed === '') {
-            return null;
-        }
-
-        // Boolean
-        if ($trimmed === 'true') {
-            return true;
-        }
-        if ($trimmed === 'false') {
-            return false;
-        }
-
-        // Numeric
-        if (is_numeric($trimmed)) {
-            return str_contains($trimmed, '.') ? (float) $trimmed : (int) $trimmed;
-        }
-
-        return $trimmed;
     }
 
     /**
@@ -270,18 +63,120 @@ class ToonFormatterService
      */
     public function generateExampleForPrompt(): string
     {
-        return <<<'TOON'
-requirements[2]{id,name,type,priority,status}:
-  REQ-001,User Authentication,functional,critical,approved
-  REQ-002,Data Encryption,non-functional,high,draft
+        $example = [
+            'requirements' => [
+                [
+                    'id' => 'REQ-001',
+                    'name' => 'User Authentication',
+                    'type' => 'functional',
+                    'priority' => 'critical',
+                    'status' => 'approved',
+                    'source' => 'Security Doc v2.1'
+                ],
+                [
+                    'id' => 'REQ-002',
+                    'name' => 'Data Encryption',
+                    'type' => 'non-functional',
+                    'priority' => 'high',
+                    'status' => 'draft',
+                    'source' => 'Compliance Requirements'
+                ]
+            ],
+            'roles' => [
+                [
+                    'id' => 'ROLE-001',
+                    'name' => 'Security Officer',
+                    'level' => 'manager',
+                    'responsibilities' => 'Security, Compliance, Data Protection'
+                ]
+            ],
+            'relationships' => [
+                ['type' => 'OWNED_BY', 'source' => 'REQ-001', 'target' => 'ROLE-001'],
+                ['type' => 'OWNED_BY', 'source' => 'REQ-002', 'target' => 'ROLE-001']
+            ]
+        ];
 
-roles[1]{id,name,level}:
-  ROLE-001,Security Officer,manager
+        return toon_compact($example);
+    }
 
-relationships[2]{type,source,target}:
-  OWNED_BY,REQ-001,ROLE-001
-  OWNED_BY,REQ-002,ROLE-001
-TOON;
+    /**
+     * Vergleicht Token-Ersparnis von TOON vs. JSON
+     * 
+     * @return array{toon: int, json: int, savings: int, savings_percent: string}
+     */
+    public function compareWithJson(array $data): array
+    {
+        return toon_compare($data);
+    }
+
+    /**
+     * Schätzt Token-Count für TOON-Output (4 chars/token heuristic)
+     */
+    public function estimateTokens(array $data): int
+    {
+        return toon_estimate_tokens($data);
+    }
+
+    /**
+     * Bereitet Graph-Daten für TOON-Encoding vor
+     */
+    private function prepareGraphData(RequirementsGraphDto $graph): array
+    {
+        $data = [];
+
+        // Requirements
+        if (!empty($graph->requirements)) {
+            $data['requirements'] = array_map(
+                fn($r) => is_array($r) ? $r : $r->toArray(), 
+                $graph->requirements
+            );
+        }
+
+        // Roles
+        if (!empty($graph->roles)) {
+            $data['roles'] = array_map(
+                fn($r) => is_array($r) ? $r : $r->toArray(), 
+                $graph->roles
+            );
+        }
+
+        // Environments
+        if (!empty($graph->environments)) {
+            $data['environments'] = array_map(
+                fn($e) => is_array($e) ? $e : $e->toArray(), 
+                $graph->environments
+            );
+        }
+
+        // Businesses
+        if (!empty($graph->businesses)) {
+            $data['businesses'] = array_map(
+                fn($b) => is_array($b) ? $b : $b->toArray(), 
+                $graph->businesses
+            );
+        }
+
+        // Infrastructures
+        if (!empty($graph->infrastructures)) {
+            $data['infrastructures'] = array_map(
+                fn($i) => is_array($i) ? $i : $i->toArray(), 
+                $graph->infrastructures
+            );
+        }
+
+        // Software Applications
+        if (!empty($graph->softwareApplications)) {
+            $data['softwareApplications'] = array_map(
+                fn($s) => is_array($s) ? $s : $s->toArray(), 
+                $graph->softwareApplications
+            );
+        }
+
+        // Relationships
+        if (!empty($graph->relationships)) {
+            $data['relationships'] = $graph->relationships;
+        }
+
+        return $data;
     }
 }
-

@@ -16,11 +16,13 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 #[AsMessageHandler]
 class RequirementsMessageHandler
 {
+    private readonly string $outputPath;
+
     public function __construct(
         private readonly RequirementsExtractionService $extractionService,
         private readonly QueueStatsService $queueStats,
         private readonly LoggerInterface $logger,
-        private readonly string $outputPath = null
+        ?string $outputPath = null
     ) {
         $this->outputPath = $outputPath ?: __DIR__ . '/../../var/requirements_output/';
         
