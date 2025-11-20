@@ -1,0 +1,359 @@
+# 🧠 RAGinald - Software Requirements Extraction with Schema.org & RAG
+
+Eine **production-ready RAG-Pipeline** für **Software Requirements Extraction** basierend auf **Symfony 7.2 LTS**, **API Platform 4.0**, **TOON Format**, **Ollama LLM**, und **Neo4j** für intelligente Dokumentenverarbeitung und semantische Suche.
+
+## 🎯 **Überblick**
+
+Diese Anwendung extrahiert automatisch Software-Requirements aus Dokumenten und strukturiert sie nach **Schema.org Standards** (`SoftwareApplication` + `SoftwareRequirements`):
+
+- 📄 **Dokumenten-Extraktion** (Apache Tika)
+- 🤖 **LLM-basierte Requirements-Analyse** (Ollama mit TOON Format)
+- 📊 **Schema.org DTO Mapping** (SoftwareApplication/Requirements)
+- 🔢 **Vektorisierung** (Ollama Embeddings)
+- 🗄️ **Graph-Datenbank Speicherung** (Neo4j)
+- 🔍 **Semantische Suche** in Requirements
+- ⚡ **Asynchrone Verarbeitung** (Symfony Messenger)
+- 🔐 **JWT Authentication** (API Platform Security)
+
+---
+
+## 🚀 **Quick Start**
+
+### 🐳 **Option 1: Docker (Empfohlen)**
+
+```bash
+# 1. Services starten (Tika, Neo4j, Ollama)
+docker-compose up -d
+
+# 2. LLM-Modelle installieren (einmalig)
+docker exec raginald_ollama ollama pull llama3.2
+docker exec raginald_ollama ollama pull nomic-embed-text
+
+# 3. JWT Keys generieren (einmalig)
+mkdir -p config/jwt
+php bin/console lexik:jwt:generate-keypair
+
+# 4. Database Setup
+php bin/console doctrine:database:create
+php bin/console doctrine:migrations:migrate --no-interaction
+
+# 5. Neo4j Indexes erstellen
+php bin/console app:neo4j:init
+
+# 6. API testen
+curl http://localhost:8000/api/health
+```
+
+**Zugangsdaten:**
+- **Neo4j Browser**: http://localhost:7474 (neo4j / password)
+- **API**: http://localhost:8000/api
+- **API Docs**: http://localhost:8000/api/docs
+
+### ⚙️ **Option 2: Lokale Installation (WSL2/Linux)**
+
+```bash
+# 1. Dependencies installieren (bereits erledigt)
+composer install
+
+# 2. Services manuell starten
+docker run -d -p 9998:9998 apache/tika              # Tika
+docker run -d -p 7474:7474 -p 7687:7687 \           # Neo4j
+  -e NEO4J_AUTH=neo4j/password neo4j:5.15
+ollama serve                                         # Ollama (lokal)
+
+# 3. Modelle installieren
+ollama pull llama3.2
+ollama pull nomic-embed-text
+
+# 4. JWT Keys generieren
+mkdir -p config/jwt
+php bin/console lexik:jwt:generate-keypair
+
+# 5. Database Setup
+php bin/console doctrine:database:create
+php bin/console doctrine:migrations:migrate --no-interaction
+
+# 6. Message Worker starten (in separater Shell)
+php bin/console messenger:consume async -vv
+
+# 7. Development Server starten
+symfony serve -d
+# oder
+php -S 0.0.0.0:8000 -t public
+```
+
+---
+
+## 🔗 **API Endpunkte**
+
+### **Authentication**
+
+```bash
+# Login (JWT Token erhalten)
+curl -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "admin123"
+  }'
+
+# Response:
+# {"token": "eyJ0eXAiOiJKV1QiLCJhbGc..."}
+```
+
+### **Requirements Extraction**
+
+```bash
+# 1. Requirements aus Dokument extrahieren
+curl -X POST http://localhost:8000/api/requirements/extract \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documentPath": "/path/to/requirements.pdf",
+    "projectName": "My Software Project",
+    "extractionOptions": {
+      "llmModel": "llama3.2",
+      "temperature": 0.7,
+      "async": true
+    }
+  }'
+
+# Response:
+# {
+#   "id": "01932c8e-7b4a-7890-a123-456789abcdef",
+#   "status": "processing",
+#   "documentPath": "/path/to/requirements.pdf",
+#   "projectName": "My Software Project",
+#   "createdAt": "2025-01-15T10:30:00+00:00"
+# }
+
+# 2. Job-Status abfragen
+curl -X GET http://localhost:8000/api/requirements/jobs/01932c8e-7b4a-7890-a123-456789abcdef \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# 3. Alle Jobs auflisten
+curl -X GET http://localhost:8000/api/requirements/jobs \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### **Health Checks**
+
+```bash
+# Service Status prüfen (ohne Auth)
+curl http://localhost:8000/api/health
+
+# Verfügbare LLM-Modelle (ohne Auth)
+curl http://localhost:8000/api/models
+```
+
+---
+
+## 🏗️ **Architektur**
+
+### **Requirements Extraction Pipeline**
+
+```mermaid
+graph TB
+    A[Document Upload] --> B[Tika Extraction]
+    B --> C[LLM Analysis mit TOON]
+    C --> D[Schema.org DTO Mapping]
+    D --> E[Ollama Embeddings]
+    E --> F[Neo4j Graph Storage]
+    F --> G[Semantic Search Ready]
+    
+    H[Message Queue] --> I[Async Processing]
+    J[JWT Auth] --> K[API Platform]
+```
+
+### **TOON Format - Token-Optimierung**
+
+Diese Anwendung nutzt **[TOON (Token-Oriented Object Notation)](https://github.com/HelgeSverre/toon-php)** für LLM-Kommunikation:
+
+- ✅ **~50% Token-Ersparnis** gegenüber JSON
+- ✅ **~68% Token-Ersparnis** gegenüber XML
+- ✅ Bessere LLM-Verständlichkeit durch strukturierte Notation
+- ✅ Kompakte Arrays und Objekte
+
+**Beispiel:**
+
+```toon
+requirements[3]:
+  - identifier: REQ-001
+    name: User Authentication
+    description: System shall support email/password login
+    requirementType: functional
+    priority: must
+    tags[2]: auth, security
+  - identifier: REQ-002
+    name: Response Time
+    description: API responses within 200ms
+    requirementType: performance
+    priority: should
+    tags[1]: performance
+```
+
+vs. JSON (deutlich länger):
+
+```json
+{
+  "requirements": [
+    {
+      "identifier": "REQ-001",
+      "name": "User Authentication",
+      "description": "System shall support email/password login",
+      "requirementType": "functional",
+      "priority": "must",
+      "tags": ["auth", "security"]
+    },
+    ...
+  ]
+}
+```
+
+---
+
+## 📊 **Schema.org DTOs**
+
+### **SoftwareApplication**
+
+```php
+$application = new SoftwareApplicationDTO(
+    name: 'My Software',
+    description: 'Project description',
+    requirements: [/* array of SoftwareRequirementsDTO */]
+);
+```
+
+### **SoftwareRequirements**
+
+```php
+$requirement = new SoftwareRequirementsDTO(
+    identifier: 'REQ-001',
+    name: 'User Login',
+    description: 'System shall allow users to log in',
+    requirementType: 'functional', // functional, non-functional, technical, business, security, performance, usability
+    priority: 'must' // must, should, could, wont (MoSCoW)
+);
+```
+
+---
+
+## ⚡ **Performance Features**
+
+### **Token-Optimierung mit TOON**
+
+- **Durchschnittliche Ersparnis**: 50% vs JSON, 68% vs XML
+- **Beispiel**: 10.000 Token (JSON) → 5.000 Token (TOON)
+- **Kosten-Reduktion**: ~50% bei Token-basierten APIs
+
+### **Asynchrone Verarbeitung**
+
+- **Message Queue** für schwere Operationen
+- **Background Workers** via Symfony Messenger
+- **Graceful Error Recovery**
+
+### **Embeddings & Semantic Search**
+
+- **Ollama Embeddings**: nomic-embed-text (768 dim), mxbai-embed-large (1024 dim)
+- **Cosine Similarity** für semantische Suche
+- **Neo4j Vector Storage** mit GDS Plugin
+
+---
+
+## 🛡️ **Security Features**
+
+### **JWT Authentication**
+
+- API Platform Security Integration
+- Token-basierte Authentifizierung
+- Role-based Access Control (RBAC)
+
+### **Input Validation**
+
+- Symfony Validator Constraints
+- Path Traversal Protection
+- Schema.org DTO Validation
+
+---
+
+## 🐛 **Troubleshooting**
+
+### **LLM gibt keine Requirements zurück**
+
+```bash
+# 1. Modell prüfen
+docker exec raginald_ollama ollama list
+
+# 2. Modell installieren
+docker exec raginald_ollama ollama pull llama3.2
+
+# 3. Service-Status prüfen
+curl http://localhost:8000/api/health
+```
+
+### **Message Queue läuft nicht**
+
+```bash
+# Worker-Status prüfen
+php bin/console messenger:stats
+
+# Worker manuell starten
+php bin/console messenger:consume async -vv
+```
+
+### **Neo4j Connection Failed**
+
+```bash
+# Container prüfen
+docker ps | grep neo4j
+
+# Logs anzeigen
+docker logs raginald_neo4j
+
+# Browser öffnen
+open http://localhost:7474
+```
+
+---
+
+## 📚 **Technologie-Stack**
+
+- **Framework**: Symfony 7.2 LTS
+- **API**: API Platform 4.0
+- **LLM**: Ollama (llama3.2, nomic-embed-text)
+- **Format**: TOON-PHP v2.0 (Token-Optimierung)
+- **Database**: Neo4j 5.15 (Graph DB)
+- **Document**: Apache Tika
+- **Queue**: Symfony Messenger
+- **Auth**: Lexik JWT Authentication
+
+---
+
+## 🤝 **Contributing**
+
+Das System folgt **Symfony Best Practices**, **API Platform Patterns**, und **Schema.org Standards**:
+
+1. **Interface-basierte Services**
+2. **State Processors/Providers** (API Platform)
+3. **Message Handlers** für Async Logic
+4. **DTO-basierte Validierung**
+5. **TOON Format** für LLM-Kommunikation
+
+---
+
+## 📈 **Roadmap**
+
+- [ ] Doctrine Entity Persistence für Jobs
+- [ ] Redis Cache Layer für Production
+- [ ] GraphQL API Support
+- [ ] Real-time WebSocket Updates
+- [ ] Multiple Document Formats (CSV, Excel, etc.)
+- [ ] Advanced Neo4j Queries (Cypher DSL)
+- [ ] CI/CD Pipeline (GitHub Actions)
+
+---
+
+**Eine vollständig optimierte, production-ready RAG-Pipeline für Software Requirements Extraction! 🚀**
+
+*Entwickelt mit Symfony 7.2 LTS, API Platform 4.0, TOON Format, und Schema.org Standards.*
+

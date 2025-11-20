@@ -1,0 +1,27 @@
+api_platform:
+    title: RAGinald API
+    version: 1.0.0
+    description: 'Software Requirements Extraction API with Schema.org & RAG'
+    show_webby: false
+    defaults:
+        stateless: true
+        cache_headers:
+            vary: ['Content-Type', 'Authorization', 'Origin']
+        extra_properties:
+            standard_put: true
+            rfc_7807_compliant_errors: true
+    
+    # OpenAPI/Swagger Documentation
+    swagger:
+        versions: [3]
+    
+    # Swagger UI Extra Configuration
+    enable_swagger_ui: true
+    openapi:
+        swagger_ui_extra_configuration:
+            docExpansion: 'none'
+            filter: true
+            syntaxHighlight:
+                theme: 'monokai'
+            defaultModelsExpandDepth: -1
+            displayRequestDuration: true

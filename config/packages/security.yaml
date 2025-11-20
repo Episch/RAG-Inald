@@ -1,0 +1,53 @@
+security:
+    # Password hashers
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+
+    # Providers
+    providers:
+        # In-memory provider for demo (replace with database in production)
+        in_memory:
+            memory:
+                users:
+                    admin:
+                        password: '$2y$13$TnCrVzrOapXOHM1HbCPrFOrVMDLxDGNWvBz4fzjTLhnll0rwbKwIy' # password: admin123
+                        roles: ['ROLE_ADMIN', 'ROLE_USER']
+                    user:
+                        password: '$2y$13$sshMDemHwb.YfnSyfwXQn.qn2XfkI3AYnqqWJAvItgvmzPzPC53K6' # password: user123
+                        roles: ['ROLE_USER']
+
+    # Firewalls
+    firewalls:
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+
+        login:
+            pattern: ^/api/login
+            stateless: true
+            json_login:
+                check_path: /api/login
+                success_handler: lexik_jwt_authentication.handler.authentication_success
+                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+
+        api:
+            pattern: ^/api
+            stateless: true
+            jwt: ~
+
+    # Access control
+    access_control:
+        - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        - { path: ^/api/models, roles: PUBLIC_ACCESS }
+        - { path: ^/api/docs, roles: PUBLIC_ACCESS }
+        - { path: ^/api, roles: ROLE_USER }
+
+when@test:
+    security:
+        password_hashers:
+            Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+                algorithm: auto
+                cost: 4
+                time_cost: 3
+                memory_cost: 10

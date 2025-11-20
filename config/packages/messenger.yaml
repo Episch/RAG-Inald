@@ -1,0 +1,26 @@
+framework:
+    messenger:
+        failure_transport: failed
+
+        transports:
+            # Asynchronous transport using in-memory queue (for development)
+            # For production, consider using Redis, RabbitMQ, or Amazon SQS
+            async: 'in-memory://'
+            
+            # Failed messages transport
+            failed: 'in-memory://'
+            
+            # Synchronous transport
+            sync: 'sync://'
+
+        routing:
+            # Route extraction messages to async queue
+            App\Message\ExtractRequirementsMessage: async
+
+# when@test:
+#    framework:
+#        messenger:
+#            transports:
+#                # replace with your transport name here (e.g., my_transport: 'in-memory://')
+#                # For more Messenger testing tools, see https://github.com/zenstruck/messenger-test
+#                async: 'in-memory://'

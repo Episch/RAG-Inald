@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  # Apache Tika - Document Text Extraction
+  tika:
+    image: apache/tika:latest
+    container_name: raginald_tika
+    ports:
+      - "9998:9998"
+    networks:
+      - raginald_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9998/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Neo4j - Graph Database for Requirements Storage
+  neo4j:
+    image: neo4j:5.15
+    container_name: raginald_neo4j
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*,gds.*
+      NEO4J_dbms_memory_heap_max__size: 2G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    networks:
+      - raginald_network
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Ollama - Local LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: raginald_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - raginald_network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis - Cache for Production (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: raginald_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - raginald_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    profiles:
+      - production
+
+  # PHP-FPM + Symfony Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: raginald_app
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+      - ./output:/var/www/html/output
+    environment:
+      APP_ENV: prod
+      DATABASE_URL: sqlite:///%kernel.project_dir%/var/data.db
+      DOCUMENT_EXTRACTOR_URL: http://tika:9998
+      NEO4J_URL: http://neo4j:7474
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
+      MESSENGER_TRANSPORT_DSN: doctrine://default?auto_setup=0
+    depends_on:
+      - tika
+      - neo4j
+      - ollama
+    networks:
+      - raginald_network
+    profiles:
+      - full
+
+  # Nginx - Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: raginald_nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - raginald_network
+    profiles:
+      - full
+
+  # Message Queue Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: raginald_worker
+    working_dir: /var/www/html
+    command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=512M
+    volumes:
+      - .:/var/www/html
+      - ./output:/var/www/html/output
+    environment:
+      APP_ENV: prod
+      DATABASE_URL: sqlite:///%kernel.project_dir%/var/data.db
+      DOCUMENT_EXTRACTOR_URL: http://tika:9998
+      NEO4J_URL: http://neo4j:7474
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
+      MESSENGER_TRANSPORT_DSN: doctrine://default?auto_setup=0
+    depends_on:
+      - tika
+      - neo4j
+      - ollama
+    networks:
+      - raginald_network
+    profiles:
+      - full
+    restart: unless-stopped
+
+networks:
+  raginald_network:
+    driver: bridge
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  ollama_data:
+  redis_data:

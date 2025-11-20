@@ -1,0 +1,63 @@
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    # Tika Document Extractor
+    App\Service\DocumentExtractor\TikaExtractorService:
+        arguments:
+            $tikaUrl: '%env(DOCUMENT_EXTRACTOR_URL)%'
+
+    # Ollama LLM Service
+    App\Service\LLM\OllamaLLMService:
+        arguments:
+            $ollamaUrl: '%env(OLLAMA_URL)%'
+            $defaultModel: '%env(OLLAMA_MODEL)%'
+
+    # Ollama Embeddings Service
+    App\Service\Embeddings\OllamaEmbeddingsService:
+        arguments:
+            $ollamaUrl: '%env(OLLAMA_URL)%'
+            $defaultEmbeddingModel: '%env(OLLAMA_EMBEDDING_MODEL)%'
+
+    # Neo4j Connector
+    App\Service\Neo4j\Neo4jConnectorService:
+        arguments:
+            $neo4jUrl: '%env(NEO4J_URL)%'
+            $neo4jUser: '%env(NEO4J_USER)%'
+            $neo4jPassword: '%env(NEO4J_PASSWORD)%'
+
+    # API Platform State Processors/Providers
+    App\State\RequirementExtractionProcessor:
+        tags:
+            - { name: 'api_platform.state_processor' }
+
+    App\State\RequirementExtractionProvider:
+        tags:
+            - { name: 'api_platform.state_provider' }
+
+    # OpenAPI Customization
+    App\OpenApi\LoginExampleDecorator:
+        decorates: 'api_platform.openapi.factory'
+        decoration_priority: -20  # Run after Lexik JWT decorator (which has priority -10)
+        arguments:
+            $decorated: '@.inner'
+
+when@test:
+    services:
+        _defaults:
+            public: true
+
+when@dev:
+    services:
+        _defaults:
+            public: true
