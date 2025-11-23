@@ -312,18 +312,18 @@ final class LoginExampleDecorator implements OpenApiFactoryInterface
     private function applyJwtSecurity(OpenApi $openApi): void
     {
         // IMPORTANT: security must be an ARRAY of security requirements
-        $jwtSecurity = [['JWT' => []]];  // Array containing an object
+        $jwtSecurity = [['JWT' => []]];  // Protected: Array containing JWT requirement
+        $noSecurity = [];  // Public: Empty array means NO authentication required
         
-        // Paths that should NOT require authentication
+        // Paths that should NOT require authentication (public routes)
         $publicPaths = ['/api/login', '/api/health', '/api/models', '/api/docs'];
         
         foreach ($openApi->getPaths()->getPaths() as $path => $pathItem) {
-            // Skip public paths
-            if (in_array($path, $publicPaths)) {
-                continue;
-            }
+            // Determine if this path is public or protected
+            $isPublic = in_array($path, $publicPaths);
+            $security = $isPublic ? $noSecurity : $jwtSecurity;
             
-            // Apply JWT security to all operations in this path
+            // Apply security to all operations in this path
             $operations = [
                 'get' => $pathItem->getGet(),
                 'post' => $pathItem->getPost(),
@@ -334,7 +334,8 @@ final class LoginExampleDecorator implements OpenApiFactoryInterface
             
             foreach ($operations as $method => $operation) {
                 if ($operation) {
-                    $newOperation = $operation->withSecurity($jwtSecurity);
+                    // Explicitly set security (either empty for public or JWT for protected)
+                    $newOperation = $operation->withSecurity($security);
                     $pathItem = match($method) {
                         'get' => $pathItem->withGet($newOperation),
                         'post' => $pathItem->withPost($newOperation),
