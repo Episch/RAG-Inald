@@ -19,7 +19,11 @@ security:
     # Firewalls
     firewalls:
         dev:
-            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            pattern: ^/(_(profiler|wdt)|css|images|js|bundles)/
+            security: false
+
+        docs:
+            pattern: ^/api/(docs|contexts)(\.(json|jsonld|jsonopenapi|html|yaml|yamlopenapi))?
             security: false
 
         login:
@@ -40,7 +44,6 @@ security:
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
         - { path: ^/api/models, roles: PUBLIC_ACCESS }
-        - { path: ^/api/docs, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: ROLE_USER }
 
 when@test:

@@ -14,6 +14,10 @@ api_platform:
     # OpenAPI/Swagger Documentation
     swagger:
         versions: [3]
+        api_keys:
+            JWT:
+                name: Authorization
+                type: header
     
     # Swagger UI Extra Configuration
     enable_swagger_ui: true
@@ -25,3 +29,5 @@ api_platform:
                 theme: 'monokai'
             defaultModelsExpandDepth: -1
             displayRequestDuration: true
+            persistAuthorization: true
+            withCredentials: false

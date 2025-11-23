@@ -27,6 +27,9 @@ final class LoginExampleDecorator implements OpenApiFactoryInterface
     {
         $openApi = ($this->decorated)($context);
 
+        // JWT security scheme is now automatically handled by api_platform.yaml configuration
+        // No need to manually define it here
+
         // 1. Customize the /api/login endpoint
         $this->customizeLoginEndpoint($openApi);
 
@@ -308,7 +311,8 @@ final class LoginExampleDecorator implements OpenApiFactoryInterface
 
     private function applyJwtSecurity(OpenApi $openApi): void
     {
-        $jwtSecurity = ['JWT' => []];
+        // IMPORTANT: security must be an ARRAY of security requirements
+        $jwtSecurity = [['JWT' => []]];  // Array containing an object
         
         // Paths that should NOT require authentication
         $publicPaths = ['/api/login', '/api/health', '/api/models', '/api/docs'];
