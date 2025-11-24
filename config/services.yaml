@@ -12,10 +12,51 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    # Tika Document Extractor
+    # Document Extraction Services
+    
+    # Tika Document Extractor (legacy/low-level service)
     App\Service\DocumentExtractor\TikaExtractorService:
         arguments:
             $tikaUrl: '%env(DOCUMENT_EXTRACTOR_URL)%'
+    
+    # Document Format Detector
+    App\Service\DocumentExtractor\DocumentFormatDetector: ~
+    
+    # Document Parsers (tagged for auto-registration)
+    # Parsers are tried in priority order (highest first)
+    
+    # Plain Text Parser (Priority: 150)
+    App\Service\DocumentParser\MarkdownDocumentParser:
+        tags: ['app.document_parser']
+    
+    # Plain Text Parser (Priority: 120)
+    App\Service\DocumentParser\PlainTextDocumentParser:
+        tags: ['app.document_parser']
+    
+    # Native PDF Parser (Priority: 100)
+    App\Service\DocumentParser\PdfDocumentParser:
+        tags: ['app.document_parser']
+    
+    # Native Excel/Spreadsheet Parser (Priority: 100)
+    App\Service\DocumentParser\SpreadsheetDocumentParser:
+        tags: ['app.document_parser']
+    
+    # Native Word Parser (Priority: 100)
+    App\Service\DocumentParser\WordDocumentParser:
+        tags: ['app.document_parser']
+    
+    # Image OCR Parser (Priority: 50, optional)
+    App\Service\DocumentParser\ImageOcrDocumentParser:
+        tags: ['app.document_parser']
+    
+    # Tika Universal Parser (Priority: 0, Fallback)
+    App\Service\DocumentParser\TikaDocumentParser:
+        tags: ['app.document_parser']
+    
+    # Document Extraction Router (orchestrator)
+    App\Service\DocumentExtractor\DocumentExtractionRouter:
+        arguments:
+            $parsers: !tagged app.document_parser
 
     # Ollama LLM Service
     App\Service\LLM\OllamaLLMService:

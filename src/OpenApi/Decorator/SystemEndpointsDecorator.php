@@ -151,10 +151,10 @@ final class SystemEndpointsDecorator implements OpenApiFactoryInterface
                                 'models' => [
                                     'type' => 'array',
                                     'items' => ['type' => 'string'],
-                                    'examples' => [['llama3.2', 'nomic-embed-text']]
+                                    'example' => ['llama3.2', 'nomic-embed-text']
                                 ],
-                                'default_model' => ['type' => 'string', 'examples' => ['llama3.2']],
-                                'embedding_model' => ['type' => 'string', 'examples' => ['nomic-embed-text']]
+                                'default_model' => ['type' => 'string', 'example' => 'llama3.2'],
+                                'embedding_model' => ['type' => 'string', 'example' => 'nomic-embed-text']
                             ]
                         ]
                     ]

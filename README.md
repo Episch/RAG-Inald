@@ -1,19 +1,20 @@
-# 🧠 RAGinald - Software Requirements Extraction with Schema.org & RAG
+# 🧠 RAGinald - Software Requirements Extraction
 
-Eine **production-ready RAG-Pipeline** für **Software Requirements Extraction** basierend auf **Symfony 7.2 LTS**, **API Platform 4.0**, **TOON Format**, **Ollama LLM**, und **Neo4j** für intelligente Dokumentenverarbeitung und semantische Suche.
+Eine **production-ready RAG-Pipeline** für **Software Requirements Extraction** basierend auf **Symfony**, **API Platform**, **TOON Format**, **Ollama LLM**, und **Neo4j** für intelligente Dokumentenverarbeitung und semantische Suche.
 
 ## 🎯 **Überblick**
 
 Diese Anwendung extrahiert automatisch Software-Requirements aus Dokumenten und strukturiert sie nach **Schema.org Standards** (`SoftwareApplication` + `SoftwareRequirements`):
 
-- 📄 **Dokumenten-Extraktion** (Apache Tika)
+- 📄 **Intelligente Dokumenten-Extraktion** (Format Router + Native Parser für PDF/Excel/Word/Markdown)
 - 🤖 **LLM-basierte Requirements-Analyse** (Ollama mit TOON Format)
 - 📊 **Schema.org DTO Mapping** (SoftwareApplication/Requirements)
 - 🔢 **Vektorisierung** (Ollama Embeddings)
 - 🗄️ **Graph-Datenbank Speicherung** (Neo4j)
 - 🔍 **Semantische Suche** in Requirements
-- ⚡ **Asynchrone Verarbeitung** (Symfony Messenger)
+- ⚡ **Asynchrone Verarbeitung** (Symfony Messenger + Redis Queue)
 - 🔐 **JWT Authentication** (API Platform Security)
+- 🚦 **Rate Limiting** (konfigurierbar per ENV)
 
 ---
 
@@ -73,7 +74,10 @@ php bin/console lexik:jwt:generate-keypair
 php bin/console doctrine:database:create
 php bin/console doctrine:migrations:migrate --no-interaction
 
-# 6. Message Worker starten (in separater Shell)
+# 6. Redis starten (für Message Queue)
+docker run -d -p 6379:6379 redis:alpine
+
+# 7. Message Worker starten (in separater Shell)
 php bin/console messenger:consume async -vv
 
 # 7. Development Server starten
@@ -131,6 +135,11 @@ REDIS_URL=redis://localhost:6379
 JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
 JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem
 JWT_PASSPHRASE=your_passphrase_here
+```
+
+**💡 Tipp**: Für Development kann Rate Limiting deaktiviert werden:
+```bash
+RATE_LIMIT_ENABLED=false
 ```
 
 ---
@@ -205,16 +214,41 @@ curl http://localhost:8000/api/models
 
 ```mermaid
 graph TB
-    A[Document Upload] --> B[Tika Extraction]
-    B --> C[LLM Analysis mit TOON]
-    C --> D[Schema.org DTO Mapping]
-    D --> E[Ollama Embeddings]
-    E --> F[Neo4j Graph Storage]
-    F --> G[Semantic Search Ready]
+    A[Document Upload] --> B[Format Detection]
+    B --> C{Format Router}
+    C -->|PDF| D1[PDF Parser]
+    C -->|Excel| D2[Excel Parser]
+    C -->|Word| D3[Word Parser]
+    C -->|Markdown| D4[Markdown Parser]
+    C -->|Fallback| D5[Tika Universal]
+    D1 & D2 & D3 & D4 & D5 --> E[Text Extraction]
+    E --> F[LLM Analysis mit TOON]
+    F --> G[Schema.org DTO Mapping]
+    G --> H[Ollama Embeddings]
+    H --> I[Neo4j Graph Storage]
+    I --> J[Semantic Search Ready]
     
-    H[Message Queue] --> I[Async Processing]
-    J[JWT Auth] --> K[API Platform]
+    K[Redis Queue] --> L[Async Processing]
+    M[JWT Auth + Rate Limit] --> N[API Platform]
 ```
+
+### **Document Extraction Router**
+
+Intelligente Format-Erkennung und Parser-Selection:
+
+1. **Format Detection** → MIME-Type via `symfony/mime`
+2. **Parser Selection** → Best parser by priority
+3. **Native Parsers** → PDF, Excel, Word, Markdown
+4. **Fallback** → Apache Tika für alle anderen Formate
+
+**Unterstützte Formate:**
+- ✅ **PDF** (`smalot/pdfparser`)
+- ✅ **Excel** (XLSX, XLS, CSV, ODS via `phpoffice/phpspreadsheet`)
+- ✅ **Word** (DOCX, DOC, RTF, ODT via `phpoffice/phpword`)
+- ✅ **Markdown** (Native PHP)
+- ✅ **Plain Text** (TXT, HTML, XML, JSON)
+- ✅ **Images** (OCR via Tesseract - optional)
+- ✅ **Alle anderen** (Apache Tika Fallback)
 
 ### **TOON Format - Token-Optimierung**
 
@@ -345,11 +379,21 @@ curl http://localhost:8000/api/health
 ### **Message Queue läuft nicht**
 
 ```bash
+# Redis Status prüfen
+redis-cli ping  # Should return: PONG
+
 # Worker-Status prüfen
 php bin/console messenger:stats
 
+# Failed messages anzeigen
+php bin/console messenger:failed:show
+
 # Worker manuell starten
 php bin/console messenger:consume async -vv
+
+# Redis Queue löschen (bei Problemen)
+redis-cli DEL raginald_async
+redis-cli DEL raginald_failed
 ```
 
 ### **Neo4j Connection Failed**
@@ -369,14 +413,25 @@ open http://localhost:7474
 
 ## 📚 **Technologie-Stack**
 
+### **Core**
 - **Framework**: Symfony 7.2 LTS
 - **API**: API Platform 4.0
 - **LLM**: Ollama (llama3.2, nomic-embed-text)
 - **Format**: TOON-PHP v2.0 (Token-Optimierung)
-- **Database**: Neo4j 5.15 (Graph DB)
-- **Document**: Apache Tika
-- **Queue**: Symfony Messenger
+- **Graph DB**: Neo4j 5.15
+- **Cache/Queue**: Redis (Refresh Tokens + Message Queue)
+
+### **Document Processing**
+- **Format Detection**: Symfony MIME Component
+- **PDF Parser**: smalot/pdfparser
+- **Excel Parser**: phpoffice/phpspreadsheet
+- **Word Parser**: phpoffice/phpword
+- **Fallback**: Apache Tika
+
+### **Security & Performance**
 - **Auth**: Lexik JWT Authentication
+- **Rate Limiting**: Symfony Rate Limiter (konfigurierbar)
+- **Queue**: Symfony Messenger + Redis Streams
 
 ---
 

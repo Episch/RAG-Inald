@@ -7,7 +7,7 @@ namespace App\MessageHandler;
 use App\DTO\Schema\SoftwareApplication;
 use App\DTO\Schema\SoftwareRequirements;
 use App\Message\ExtractRequirementsMessage;
-use App\Service\DocumentExtractor\TikaExtractorService;
+use App\Service\DocumentExtractor\DocumentExtractionRouter;
 use App\Service\Embeddings\OllamaEmbeddingsService;
 use App\Service\LLM\OllamaLLMService;
 use App\Service\Neo4j\Neo4jConnectorService;
@@ -19,7 +19,7 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
  * Async Handler for Requirements Extraction Pipeline
  * 
  * Pipeline:
- * 1. Extract text from document (Tika)
+ * 1. Extract text from document (Format Router → Parsers)
  * 2. Send to LLM with TOON-formatted prompt
  * 3. Parse requirements from LLM response
  * 4. Generate embeddings (Ollama)
@@ -29,7 +29,7 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 class ExtractRequirementsHandler
 {
     public function __construct(
-        private readonly TikaExtractorService $tikaExtractor,
+        private readonly DocumentExtractionRouter $extractionRouter,
         private readonly OllamaLLMService $llmService,
         private readonly OllamaEmbeddingsService $embeddingsService,
         private readonly Neo4jConnectorService $neo4jConnector,
@@ -48,14 +48,26 @@ class ExtractRequirementsHandler
         ]);
 
         try {
-            // Step 1: Extract text from document
-            $tikaStart = microtime(true);
-            $extractedText = $this->tikaExtractor->extractText($message->documentPath);
-            $tikaDuration = microtime(true) - $tikaStart;
+            // Step 1: Extract text from document (with format detection & routing)
+            $extractionStart = microtime(true);
+            $extractionResult = $this->extractionRouter->extractText($message->documentPath);
+            $extractionDuration = microtime(true) - $extractionStart;
+
+            $this->logger->info('Document extraction completed', [
+                'job_id' => $message->jobId,
+                'format' => $extractionResult['format'],
+                'mime_type' => $extractionResult['mime_type'],
+                'parser' => $extractionResult['parser'],
+                'text_length' => strlen($extractionResult['text']),
+            ]);
 
             // Step 2: Generate requirements using LLM with TOON format
             $llmStart = microtime(true);
-            $requirements = $this->extractRequirementsWithLLM($extractedText, $message->projectName, $message->extractionOptions);
+            $requirements = $this->extractRequirementsWithLLM(
+                $extractionResult['text'],
+                $message->projectName,
+                $message->extractionOptions
+            );
             $llmDuration = microtime(true) - $llmStart;
 
             // Step 3: Create Software Application DTO
@@ -85,9 +97,11 @@ class ExtractRequirementsHandler
                 'job_id' => $message->jobId,
                 'requirements_count' => count($requirements),
                 'neo4j_node_id' => $nodeId,
+                'format' => $extractionResult['format'],
+                'parser' => $extractionResult['parser'],
                 'total_duration_seconds' => round($totalDuration, 3),
                 'breakdown' => [
-                    'tika' => round($tikaDuration, 3),
+                    'extraction' => round($extractionDuration, 3),
                     'llm' => round($llmDuration, 3),
                     'embeddings' => round($embeddingsDuration, 3),
                     'neo4j' => round($neo4jDuration, 3),
@@ -207,9 +221,10 @@ PROMPT;
             $this->logger->warning('No requirements found in LLM response');
             return [];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error('Failed to parse LLM response', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'response_preview' => substr($response, 0, 500),
             ]);
 

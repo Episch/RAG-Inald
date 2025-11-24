@@ -418,7 +418,7 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                             'description' => 'Use a file already present on the server - only for backend/admin use',
                             'value' => [
                                 'projectName' => 'Internal Tool Suite',
-                                'serverPath' => '/var/www/uploads/requirements-doc.pdf',
+                                'serverPath' => '/home/david/projects/raginald/public/shared/example_Use_Cases_konsolidiert.xlsx',
                                 'llmModel' => 'llama3.2',
                                 'temperature' => 0.5,
                                 'async' => true
