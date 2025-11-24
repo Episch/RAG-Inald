@@ -84,6 +84,57 @@ php -S 0.0.0.0:8000 -t public
 
 ---
 
+## ⚙️ **Konfiguration**
+
+### **Environment Variablen**
+
+Die wichtigsten Konfigurationsoptionen können über die `.env` Datei gesteuert werden:
+
+#### **Rate Limiting**
+
+```bash
+# Rate Limiting aktivieren/deaktivieren
+RATE_LIMIT_ENABLED=true          # true = aktiv, false = deaktiviert
+
+# Anzahl erlaubter Requests
+RATE_LIMIT_REQUESTS=3            # z.B. 3 Requests
+
+# Zeitfenster für Rate Limit
+RATE_LIMIT_INTERVAL="1 minute"   # z.B. "1 minute", "60 seconds", "5 minutes"
+```
+
+**Beispiele:**
+- **Development**: `RATE_LIMIT_ENABLED=false` (deaktiviert)
+- **Production**: `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REQUESTS=100`, `RATE_LIMIT_INTERVAL="1 hour"`
+- **Strict**: `RATE_LIMIT_ENABLED=true`, `RATE_LIMIT_REQUESTS=3`, `RATE_LIMIT_INTERVAL="1 minute"`
+
+#### **Service URLs**
+
+```bash
+# LLM Service (Ollama)
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+
+# Document Extractor (Tika)
+DOCUMENT_EXTRACTOR_URL=http://localhost:9998
+
+# Graph Database (Neo4j)
+NEO4J_URL=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=password
+
+# Message Queue (Redis)
+REDIS_URL=redis://localhost:6379
+
+# JWT Authentication
+JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem
+JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem
+JWT_PASSPHRASE=your_passphrase_here
+```
+
+---
+
 ## 🔗 **API Endpunkte**
 
 ### **Authentication**

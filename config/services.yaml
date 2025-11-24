@@ -74,6 +74,13 @@ services:
         decoration_priority: -60  # Run last to ensure proper tag ordering
         arguments:
             $decorated: '@.inner'
+    
+    # Rate Limiter Event Listener
+    App\EventListener\PublicApiRateLimitListener:
+        arguments:
+            $rateLimitEnabled: '%env(bool:RATE_LIMIT_ENABLED)%'
+        tags:
+            - { name: kernel.event_subscriber }
 
 when@test:
     services:

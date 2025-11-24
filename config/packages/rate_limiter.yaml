@@ -1,8 +1,12 @@
 framework:
     rate_limiter:
-        # Public API endpoints rate limiter: 3 requests per minute
+        # Public API endpoints rate limiter
+        # Configure via environment variables:
+        #   RATE_LIMIT_ENABLED (true/false) - Enable/disable rate limiting
+        #   RATE_LIMIT_REQUESTS (integer) - Number of requests allowed
+        #   RATE_LIMIT_INTERVAL (string) - Time window (e.g. "1 minute", "60 seconds")
         public_api:
             policy: 'sliding_window'
-            limit: 3
-            interval: '1 minute'
+            limit: '%env(int:RATE_LIMIT_REQUESTS)%'
+            interval: '%env(RATE_LIMIT_INTERVAL)%'
 
