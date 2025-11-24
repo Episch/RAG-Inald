@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\DTO\Schema\RequirementSearchInput;
 use App\Exception\EmbeddingModelNotAvailableException;
 use App\Service\Embeddings\OllamaEmbeddingsService;
 use App\Service\Neo4j\Neo4jConnectorService;
@@ -12,6 +13,8 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
  * Semantic Search Controller for Requirements
@@ -24,28 +27,41 @@ class RequirementsSearchController extends AbstractController
     public function __construct(
         private readonly OllamaEmbeddingsService $embeddingsService,
         private readonly Neo4jConnectorService $neo4jConnector,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly SerializerInterface $serializer,
+        private readonly ValidatorInterface $validator
     ) {
     }
 
     #[Route('/api/requirements/search', name: 'api_requirements_search', methods: ['POST'])]
     public function search(Request $request): JsonResponse
     {
-        $data = json_decode($request->getContent(), true);
-
-        if (!isset($data['query'])) {
+        // Deserialize and validate input
+        try {
+            /** @var RequirementSearchInput $searchInput */
+            $searchInput = $this->serializer->deserialize(
+                $request->getContent(),
+                RequirementSearchInput::class,
+                'json'
+            );
+        } catch (\Exception $e) {
             return $this->json([
-                'error' => 'Missing required field: query',
+                'error' => 'Invalid JSON',
+                'message' => $e->getMessage(),
             ], 400);
         }
 
-        $query = $data['query'];
-        $limit = $data['limit'] ?? 10;
-
-        if ($limit < 1 || $limit > 100) {
+        // Validate input
+        $errors = $this->validator->validate($searchInput);
+        if (count($errors) > 0) {
+            $errorMessages = [];
+            foreach ($errors as $error) {
+                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+            }
             return $this->json([
-                'error' => 'Limit must be between 1 and 100',
-            ], 400);
+                'error' => 'Validation failed',
+                'violations' => $errorMessages,
+            ], 422);
         }
 
         try {
@@ -53,26 +69,45 @@ class RequirementsSearchController extends AbstractController
 
             // 1. Generate embedding for the query
             $this->logger->info('Generating embedding for search query', [
-                'query' => $query,
+                'query' => $searchInput->query,
+                'filters' => [
+                    'type' => $searchInput->requirementType,
+                    'priority' => $searchInput->priority,
+                    'status' => $searchInput->status,
+                ],
             ]);
 
-            $queryEmbedding = $this->embeddingsService->embed($query);
+            $queryEmbedding = $this->embeddingsService->embed($searchInput->query);
 
-            // 2. Search similar requirements in Neo4j
+            // 2. Search similar requirements in Neo4j with filters
             $this->logger->info('Searching similar requirements in Neo4j', [
-                'limit' => $limit,
+                'limit' => $searchInput->limit,
+                'minSimilarity' => $searchInput->minSimilarity,
             ]);
 
-            $results = $this->neo4jConnector->searchSimilarRequirements($queryEmbedding, $limit);
+            $results = $this->neo4jConnector->searchSimilarRequirements(
+                $queryEmbedding,
+                $searchInput->limit,
+                $searchInput->minSimilarity,
+                $searchInput->requirementType,
+                $searchInput->priority,
+                $searchInput->status
+            );
 
             $duration = microtime(true) - $startTime;
 
             return $this->json([
-                'query' => $query,
+                'query' => $searchInput->query,
                 'results' => $results,
                 'count' => count($results),
-                'limit' => $limit,
+                'limit' => $searchInput->limit,
                 'duration_seconds' => round($duration, 3),
+                'filters' => [
+                    'minSimilarity' => $searchInput->minSimilarity,
+                    'requirementType' => $searchInput->requirementType,
+                    'priority' => $searchInput->priority,
+                    'status' => $searchInput->status,
+                ],
                 'metadata' => [
                     'embedding_model' => $_ENV['OLLAMA_EMBEDDING_MODEL'] ?? 'nomic-embed-text',
                     'embedding_dimensions' => count($queryEmbedding),
@@ -80,26 +115,26 @@ class RequirementsSearchController extends AbstractController
             ]);
         } catch (EmbeddingModelNotAvailableException $e) {
             $this->logger->error('Embedding model not available', [
-                'query' => $query,
+                'query' => $searchInput->query,
                 'error' => $e->getMessage(),
             ]);
 
             return $this->json([
                 'error' => 'Embedding model not available',
                 'message' => $e->getMessage(),
-                'query' => $query,
+                'query' => $searchInput->query,
                 'type' => 'MODEL_NOT_FOUND',
-            ], 503); // Service Unavailable
+            ], 503);
         } catch (\Exception $e) {
             $this->logger->error('Semantic search failed', [
-                'query' => $query,
+                'query' => $searchInput->query ?? 'unknown',
                 'error' => $e->getMessage(),
             ]);
 
             return $this->json([
                 'error' => 'Semantic search failed',
                 'message' => $e->getMessage(),
-                'query' => $query,
+                'query' => $searchInput->query ?? 'unknown',
             ], 500);
         }
     }

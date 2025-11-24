@@ -160,22 +160,69 @@ class Neo4jConnectorService
      * @param float[] $queryEmbedding
      * @return array Similar requirements
      */
-    public function searchSimilarRequirements(array $queryEmbedding, int $limit = 10): array
-    {
+    /**
+     * Search for similar requirements using vector similarity
+     * 
+     * @param array $queryEmbedding The embedding vector to search with
+     * @param int $limit Maximum number of results
+     * @param float $minSimilarity Minimum similarity threshold (0.0-1.0)
+     * @param string|null $requirementType Filter by requirement type
+     * @param string|null $priority Filter by priority
+     * @param string|null $status Filter by status
+     * @return array List of similar requirements with similarity scores
+     */
+    public function searchSimilarRequirements(
+        array $queryEmbedding,
+        int $limit = 10,
+        float $minSimilarity = 0.0,
+        ?string $requirementType = null,
+        ?string $priority = null,
+        ?string $status = null
+    ): array {
         try {
-            $result = $this->client->run(
-                'MATCH (req:Requirement)
-                WHERE req.embedding IS NOT NULL
+            // Build WHERE clause with filters
+            $whereConditions = ['req.embedding IS NOT NULL'];
+            $params = [
+                'queryEmbedding' => $queryEmbedding,
+                'limit' => $limit,
+            ];
+
+            if ($minSimilarity > 0.0) {
+                $params['minSimilarity'] = $minSimilarity;
+            }
+
+            if ($requirementType !== null) {
+                $whereConditions[] = 'req.requirementType = $requirementType';
+                $params['requirementType'] = $requirementType;
+            }
+
+            if ($priority !== null) {
+                $whereConditions[] = 'req.priority = $priority';
+                $params['priority'] = $priority;
+            }
+
+            if ($status !== null) {
+                $whereConditions[] = 'req.status = $status';
+                $params['status'] = $status;
+            }
+
+            $whereClause = implode(' AND ', $whereConditions);
+
+            // Build query with optional similarity filter
+            $query = "MATCH (req:Requirement)
+                WHERE {$whereClause}
                 WITH req, 
-                     gds.similarity.cosine(req.embedding, $queryEmbedding) AS similarity
-                ORDER BY similarity DESC
-                LIMIT $limit
-                RETURN req, similarity',
-                [
-                    'queryEmbedding' => $queryEmbedding,
-                    'limit' => $limit,
-                ]
-            );
+                     gds.similarity.cosine(req.embedding, \$queryEmbedding) AS similarity";
+            
+            if ($minSimilarity > 0.0) {
+                $query .= "\nWHERE similarity >= \$minSimilarity";
+            }
+            
+            $query .= "\nORDER BY similarity DESC
+                LIMIT \$limit
+                RETURN req, similarity";
+
+            $result = $this->client->run($query, $params);
 
             $requirements = [];
             foreach ($result as $record) {
@@ -186,10 +233,21 @@ class Neo4jConnectorService
                 ];
             }
 
+            $this->logger->info('Semantic search completed', [
+                'results_count' => count($requirements),
+                'filters' => [
+                    'minSimilarity' => $minSimilarity,
+                    'requirementType' => $requirementType,
+                    'priority' => $priority,
+                    'status' => $status,
+                ],
+            ]);
+
             return $requirements;
         } catch (\Exception $e) {
             $this->logger->error('Semantic search failed', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [];

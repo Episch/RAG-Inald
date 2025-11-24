@@ -174,27 +174,107 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
         ];
 
         $requestBody = new RequestBody(
-            description: 'Semantic search query',
+            description: 'Semantic search query with optional filters',
             content: new \ArrayObject([
                 'application/json' => [
                     'schema' => [
                         'type' => 'object',
+                        'required' => ['query'],
                         'properties' => [
                             'query' => [
                                 'type' => 'string',
+                                'description' => 'Natural language query to search for similar requirements',
                                 'example' => 'Show me all authentication and security requirements',
-                                'description' => 'Natural language query to search for similar requirements'
+                                'minLength' => 3,
+                                'maxLength' => 500
                             ],
                             'limit' => [
                                 'type' => 'integer',
+                                'description' => 'Maximum number of results to return',
                                 'example' => 10,
                                 'default' => 10,
                                 'minimum' => 1,
-                                'maximum' => 100,
-                                'description' => 'Maximum number of results to return'
+                                'maximum' => 100
+                            ],
+                            'minSimilarity' => [
+                                'type' => 'number',
+                                'description' => 'Minimum similarity threshold (0.0-1.0)',
+                                'example' => 0.7,
+                                'default' => 0.0,
+                                'minimum' => 0.0,
+                                'maximum' => 1.0
+                            ],
+                            'requirementType' => [
+                                'type' => 'string',
+                                'description' => 'Filter by requirement type',
+                                'example' => 'security',
+                                'enum' => ['functional', 'non-functional', 'technical', 'business', 'security', 'performance', 'usability', 'other'],
+                                'nullable' => true
+                            ],
+                            'priority' => [
+                                'type' => 'string',
+                                'description' => 'Filter by priority level (MoSCoW)',
+                                'example' => 'must',
+                                'enum' => ['must', 'should', 'could', 'wont'],
+                                'nullable' => true
+                            ],
+                            'status' => [
+                                'type' => 'string',
+                                'description' => 'Filter by requirement status',
+                                'example' => 'approved',
+                                'enum' => ['draft', 'approved', 'implemented', 'verified', 'rejected', 'obsolete'],
+                                'nullable' => true
+                            ]
+                        ]
+                    ],
+                    'examples' => [
+                        'general-search' => [
+                            'summary' => 'General Natural Language Search',
+                            'description' => 'Search using natural language to find semantically similar requirements',
+                            'value' => [
+                                'query' => 'Show me all authentication and security requirements',
+                                'limit' => 10
                             ]
                         ],
-                        'required' => ['query']
+                        'keyword-search' => [
+                            'summary' => 'Keyword-Based Search',
+                            'description' => 'Search for requirements containing specific keywords or concepts',
+                            'value' => [
+                                'query' => 'Requirements with keyword "encryption" or "data protection"',
+                                'limit' => 15,
+                                'minSimilarity' => 0.6
+                            ]
+                        ],
+                        'filtered-search' => [
+                            'summary' => 'Filtered Search by Type and Priority',
+                            'description' => 'Search with filters for requirement type and priority level',
+                            'value' => [
+                                'query' => 'user interface requirements',
+                                'limit' => 20,
+                                'requirementType' => 'functional',
+                                'priority' => 'must'
+                            ]
+                        ],
+                        'high-precision-search' => [
+                            'summary' => 'High-Precision Search',
+                            'description' => 'Search with high similarity threshold for very precise matches',
+                            'value' => [
+                                'query' => 'performance requirements for API response time',
+                                'limit' => 5,
+                                'minSimilarity' => 0.85,
+                                'requirementType' => 'performance',
+                                'status' => 'approved'
+                            ]
+                        ],
+                        'broad-exploration' => [
+                            'summary' => 'Broad Exploration',
+                            'description' => 'Explore related requirements with a lower similarity threshold',
+                            'value' => [
+                                'query' => 'What requirements are related to user management?',
+                                'limit' => 30,
+                                'minSimilarity' => 0.5
+                            ]
+                        ]
                     ]
                 ]
             ]),
