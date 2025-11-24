@@ -78,6 +78,35 @@ final class SystemEndpointsDecorator implements OpenApiFactoryInterface
                             ]
                         ]
                     ]
+                ],
+                'headers' => [
+                    'X-RateLimit-Limit' => [
+                        'description' => 'Request limit per time window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Remaining' => [
+                        'description' => 'Remaining requests in current window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Reset' => [
+                        'description' => 'Unix timestamp when limit resets',
+                        'schema' => ['type' => 'integer']
+                    ]
+                ]
+            ],
+            '429' => [
+                'description' => 'Too Many Requests - Rate limit exceeded',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string'],
+                                'retry_after' => ['type' => 'integer']
+                            ]
+                        ]
+                    ]
                 ]
             ],
             '503' => [
@@ -126,6 +155,35 @@ final class SystemEndpointsDecorator implements OpenApiFactoryInterface
                                 ],
                                 'default_model' => ['type' => 'string', 'example' => 'llama3.2'],
                                 'embedding_model' => ['type' => 'string', 'example' => 'nomic-embed-text']
+                            ]
+                        ]
+                    ]
+                ],
+                'headers' => [
+                    'X-RateLimit-Limit' => [
+                        'description' => 'Request limit per time window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Remaining' => [
+                        'description' => 'Remaining requests in current window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Reset' => [
+                        'description' => 'Unix timestamp when limit resets',
+                        'schema' => ['type' => 'integer']
+                    ]
+                ]
+            ],
+            '429' => [
+                'description' => 'Too Many Requests - Rate limit exceeded',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string'],
+                                'retry_after' => ['type' => 'integer']
                             ]
                         ]
                     ]

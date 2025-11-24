@@ -110,6 +110,20 @@ final class AuthenticationDecorator implements OpenApiFactoryInterface
                             ]
                         ]
                     ]
+                ],
+                'headers' => [
+                    'X-RateLimit-Limit' => [
+                        'description' => 'Request limit per time window',
+                        'schema' => ['type' => 'integer', 'example' => 3]
+                    ],
+                    'X-RateLimit-Remaining' => [
+                        'description' => 'Remaining requests in current window',
+                        'schema' => ['type' => 'integer', 'example' => 2]
+                    ],
+                    'X-RateLimit-Reset' => [
+                        'description' => 'Unix timestamp when limit resets',
+                        'schema' => ['type' => 'integer', 'example' => 1732550400]
+                    ]
                 ]
             ],
             '401' => [
@@ -121,6 +135,21 @@ final class AuthenticationDecorator implements OpenApiFactoryInterface
                             'properties' => [
                                 'error' => ['type' => 'string'],
                                 'message' => ['type' => 'string']
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            '429' => [
+                'description' => 'Too Many Requests - Rate limit exceeded (see X-RateLimit-* headers in 200 response)',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'error' => ['type' => 'string', 'example' => 'Too Many Requests'],
+                                'message' => ['type' => 'string', 'example' => 'Rate limit exceeded. Please try again later.'],
+                                'retry_after' => ['type' => 'integer', 'example' => 1732550400]
                             ]
                         ]
                     ]
@@ -196,6 +225,20 @@ final class AuthenticationDecorator implements OpenApiFactoryInterface
                             ]
                         ]
                     ]
+                ],
+                'headers' => [
+                    'X-RateLimit-Limit' => [
+                        'description' => 'Request limit per time window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Remaining' => [
+                        'description' => 'Remaining requests in current window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Reset' => [
+                        'description' => 'Unix timestamp when limit resets',
+                        'schema' => ['type' => 'integer']
+                    ]
                 ]
             ],
             '401' => [
@@ -207,6 +250,21 @@ final class AuthenticationDecorator implements OpenApiFactoryInterface
                             'properties' => [
                                 'error' => ['type' => 'string'],
                                 'message' => ['type' => 'string']
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            '429' => [
+                'description' => 'Too Many Requests - Rate limit exceeded',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string'],
+                                'retry_after' => ['type' => 'integer']
                             ]
                         ]
                     ]
@@ -261,6 +319,20 @@ final class AuthenticationDecorator implements OpenApiFactoryInterface
                             ]
                         ]
                     ]
+                ],
+                'headers' => [
+                    'X-RateLimit-Limit' => [
+                        'description' => 'Request limit per time window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Remaining' => [
+                        'description' => 'Remaining requests in current window',
+                        'schema' => ['type' => 'integer']
+                    ],
+                    'X-RateLimit-Reset' => [
+                        'description' => 'Unix timestamp when limit resets',
+                        'schema' => ['type' => 'integer']
+                    ]
                 ]
             ],
             '404' => [
@@ -272,6 +344,21 @@ final class AuthenticationDecorator implements OpenApiFactoryInterface
                             'properties' => [
                                 'error' => ['type' => 'string'],
                                 'message' => ['type' => 'string']
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            '429' => [
+                'description' => 'Too Many Requests - Rate limit exceeded',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string'],
+                                'retry_after' => ['type' => 'integer']
                             ]
                         ]
                     ]
