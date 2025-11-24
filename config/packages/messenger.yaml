@@ -3,12 +3,24 @@ framework:
         failure_transport: failed
 
         transports:
-            # Asynchronous transport using in-memory queue (for development)
-            # For production, consider using Redis, RabbitMQ, or Amazon SQS
-            async: 'in-memory://'
+            # Asynchronous transport using Redis (shared with JWT refresh tokens)
+            # Fast, persistent message queue using Redis Streams
+            async:
+                dsn: 'redis://localhost:6379/messages/async'
+                options:
+                    stream: 'raginald_async'
+                    group: 'raginald_workers'
+                    consumer: 'consumer_1'
+                    delete_after_ack: true
             
             # Failed messages transport
-            failed: 'in-memory://'
+            failed:
+                dsn: 'redis://localhost:6379/messages/failed'
+                options:
+                    stream: 'raginald_failed'
+                    group: 'raginald_workers'
+                    consumer: 'consumer_1'
+                    delete_after_ack: false
             
             # Synchronous transport
             sync: 'sync://'

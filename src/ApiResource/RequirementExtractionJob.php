@@ -43,8 +43,7 @@ use Symfony\Component\Validator\Constraints as Assert;
             security: 'is_granted("ROLE_USER")'
         ),
     ],
-    normalizationContext: ['groups' => ['requirement:read']],
-    denormalizationContext: ['groups' => ['requirement:write']]
+    normalizationContext: ['groups' => ['requirement:read']]
 )]
 class RequirementExtractionJob
 {
@@ -60,7 +59,7 @@ class RequirementExtractionJob
 
     #[Assert\NotBlank(groups: ['requirement:write'])]
     #[ApiProperty(required: true)]
-    public string $projectName;
+    public ?string $projectName = null;
 
     #[ApiProperty(writable: false)]
     public ?string $extractedText = null;

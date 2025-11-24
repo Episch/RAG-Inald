@@ -203,7 +203,7 @@ PROMPT;
             
             try {
                 return Toon::decode($toonContent);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $this->logger->warning('Failed to parse TOON response', [
                     'error' => $e->getMessage(),
                 ]);
@@ -213,7 +213,7 @@ PROMPT;
         // Fallback: try to parse entire response
         try {
             return Toon::decode($response);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->warning('Failed to parse response as TOON', [
                 'error' => $e->getMessage(),
             ]);

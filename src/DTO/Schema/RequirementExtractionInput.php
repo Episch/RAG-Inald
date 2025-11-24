@@ -25,7 +25,7 @@ class RequirementExtractionInput
     )]
     #[Assert\NotBlank(message: 'Project name is required')]
     #[Assert\Length(min: 3, max: 255)]
-    public string $projectName;
+    public ?string $projectName = null;
 
     // ============================================
     // Option 1: File Upload (Base64)
@@ -91,20 +91,20 @@ class RequirementExtractionInput
         ]
     )]
     #[Assert\Choice(choices: ['llama3.2', 'llama3.1', 'mistral', 'codellama'])]
-    public string $llmModel = 'llama3.2';
+    public ?string $llmModel = 'llama3.2';
 
     #[ApiProperty(
         description: 'Temperature for LLM (0.0 = deterministic, 1.0 = creative)',
         example: 0.7
     )]
     #[Assert\Range(min: 0.0, max: 1.0)]
-    public float $temperature = 0.7;
+    public ?float $temperature = 0.7;
 
     #[ApiProperty(
         description: 'Process extraction asynchronously (recommended for large documents)',
         example: true
     )]
-    public bool $async = true;
+    public ?bool $async = true;
 
     /**
      * Validate that fileContent has corresponding fileName
