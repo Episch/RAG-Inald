@@ -119,8 +119,8 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                         'schema' => [
                             'type' => 'object',
                             'properties' => [
-                                'error' => ['type' => 'string', 'example' => 'Invalid request'],
-                                'message' => ['type' => 'string', 'example' => 'Query parameter is required']
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string']
                             ]
                         ]
                     ]
@@ -133,8 +133,8 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                         'schema' => [
                             'type' => 'object',
                             'properties' => [
-                                'error' => ['type' => 'string', 'example' => 'Unauthorized'],
-                                'message' => ['type' => 'string', 'example' => 'JWT token is missing or invalid']
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string']
                             ]
                         ]
                     ]
@@ -147,9 +147,8 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                         'schema' => [
                             'type' => 'object',
                             'properties' => [
-                                'error' => ['type' => 'string', 'example' => 'Semantic search failed'],
-                                'message' => ['type' => 'string', 'example' => 'An unexpected error occurred during semantic search'],
-                                'query' => ['type' => 'string', 'example' => 'authentication requirements']
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string']
                             ]
                         ]
                     ]
@@ -162,10 +161,8 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                         'schema' => [
                             'type' => 'object',
                             'properties' => [
-                                'error' => ['type' => 'string', 'example' => 'Embedding model not available'],
-                                'message' => ['type' => 'string', 'example' => 'Embedding model \'nomic-embed-text\' is not available in Ollama. Please install the model using: ollama pull nomic-embed-text. Supported embedding models: nomic-embed-text, mxbai-embed-large, all-minilm.'],
-                                'query' => ['type' => 'string', 'example' => 'Show me all authentication requirements'],
-                                'type' => ['type' => 'string', 'example' => 'MODEL_NOT_FOUND']
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string']
                             ]
                         ]
                     ]
@@ -306,6 +303,23 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
             return;
         }
 
+        // Add 422 response for validation errors
+        $responses = $postOperation->getResponses() ?? [];
+        $responses['422'] = [
+            'description' => 'Validation error - Invalid input data',
+            'content' => [
+                'application/json' => [
+                    'schema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'error' => ['type' => 'string'],
+                            'message' => ['type' => 'string']
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
         $requestBody = new RequestBody(
             description: 'Requirements extraction request - supports three document source methods',
             content: new \ArrayObject([
@@ -426,6 +440,7 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
 
         $newOperation = $postOperation
             ->withRequestBody($requestBody)
+            ->withResponses($responses)
             ->withSummary('Extract Requirements from Document')
             ->withDescription('Extracts software requirements from a document using AI/LLM. Supports three upload methods: Base64 file upload, URL download, or server file path.');
 

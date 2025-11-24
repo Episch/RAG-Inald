@@ -69,12 +69,6 @@ services:
         arguments:
             $decorated: '@.inner'
     
-    App\OpenApi\Decorator\ErrorResponsesDecorator:
-        decorates: 'api_platform.openapi.factory'
-        decoration_priority: -50
-        arguments:
-            $decorated: '@.inner'
-    
     App\OpenApi\Decorator\TagsDecorator:
         decorates: 'api_platform.openapi.factory'
         decoration_priority: -60  # Run last to ensure proper tag ordering

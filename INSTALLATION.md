@@ -5,6 +5,7 @@
 - **PHP**: 8.2+
 - **Composer**: 2.x
 - **Docker**: 20.x+ (für Services)
+- **Redis**: 7.x+ (für JWT Refresh Tokens)
 - **WSL2**: (wenn unter Windows)
 
 ## 🚀 Automatische Installation (Empfohlen)
@@ -20,9 +21,10 @@ Das Script führt automatisch aus:
 2. ✅ JWT Keys generieren
 3. ✅ Database Setup
 4. ✅ Docker Services starten (Tika, Neo4j, Ollama)
-5. ✅ LLM-Modelle herunterladen
-6. ✅ Neo4j initialisieren
-7. ✅ Services testen
+5. ✅ Redis starten & testen
+6. ✅ LLM-Modelle herunterladen
+7. ✅ Neo4j initialisieren
+8. ✅ Services testen
 
 ## 🛠️ Manuelle Installation
 
@@ -61,7 +63,30 @@ php bin/console doctrine:database:create
 php bin/console doctrine:migrations:migrate --no-interaction
 ```
 
-### 5. Docker Services starten
+### 5. Redis starten
+
+**Option A: Lokal installiert (empfohlen für Development)**
+```bash
+# Redis starten (Ubuntu/WSL)
+sudo service redis-server start
+
+# Status prüfen
+redis-cli ping
+# Sollte "PONG" zurückgeben
+```
+
+**Option B: Docker**
+```bash
+# Redis via Docker
+docker run -d --name raginald_redis \
+  -p 6379:6379 \
+  redis:7-alpine
+
+# Status prüfen
+docker exec raginald_redis redis-cli ping
+```
+
+### 6. Docker Services starten
 
 ```bash
 # Nur externe Services (Tika, Neo4j, Ollama)
@@ -71,7 +96,7 @@ docker-compose up -d tika neo4j ollama
 docker-compose ps
 ```
 
-### 6. LLM-Modelle installieren
+### 7. LLM-Modelle installieren
 
 ```bash
 # LLama 3.2 (für Requirements Extraction)
@@ -84,20 +109,20 @@ docker exec raginald_ollama ollama pull nomic-embed-text
 docker exec raginald_ollama ollama pull mistral
 ```
 
-### 7. Neo4j initialisieren
+### 8. Neo4j initialisieren
 
 ```bash
 # Indexes und Constraints erstellen
 php bin/console app:neo4j:init
 ```
 
-### 8. Services testen
+### 9. Services testen
 
 ```bash
 # Pipeline-Test
 php bin/console app:test:extraction
 
-# API Health Check
+# API Health Check (sollte alle Services als "up" zeigen)
 curl http://localhost:8000/api/health
 ```
 
@@ -129,13 +154,32 @@ php bin/console messenger:consume async --time-limit=3600 --memory-limit=512M --
 
 ## 🧪 Erste API-Anfrage
 
-```bash
-# 1. Login (JWT Token erhalten)
-TOKEN=$(curl -s -X POST http://localhost:8000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' | jq -r '.token')
+### JWT Authentication Flow
 
-# 2. Requirements extrahieren
+```bash
+# 1. Login (JWT Token + Refresh Token erhalten)
+RESPONSE=$(curl -s -X POST http://localhost:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}')
+
+TOKEN=$(echo $RESPONSE | jq -r '.token')
+REFRESH_TOKEN=$(echo $RESPONSE | jq -r '.refresh_token')
+
+echo "Access Token: $TOKEN"
+echo "Refresh Token: $REFRESH_TOKEN"
+
+# 2. Token erneuern (wenn Access Token abläuft)
+NEW_RESPONSE=$(curl -s -X POST http://localhost:8000/api/token/refresh \
+  -H "Content-Type: application/json" \
+  -d "{\"refresh_token\":\"$REFRESH_TOKEN\",\"rotate\":true}")
+
+TOKEN=$(echo $NEW_RESPONSE | jq -r '.token')
+REFRESH_TOKEN=$(echo $NEW_RESPONSE | jq -r '.refresh_token')
+
+echo "New Access Token: $TOKEN"
+echo "New Refresh Token: $REFRESH_TOKEN"
+
+# 3. Requirements extrahieren
 curl -X POST http://localhost:8000/api/requirements/extract \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -149,6 +193,23 @@ curl -X POST http://localhost:8000/api/requirements/extract \
 ```
 
 ## 🐛 Troubleshooting
+
+### Redis Connection Error
+
+```bash
+# Redis läuft nicht?
+sudo service redis-server status
+
+# Redis starten
+sudo service redis-server start
+
+# Redis Connection testen
+redis-cli ping
+# Sollte "PONG" zurückgeben
+
+# Falls Redis auf anderem Port läuft
+redis-cli -h localhost -p 6379 ping
+```
 
 ### JWT Keys Error
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\Auth\RefreshTokenService;
 use App\Service\DocumentExtractor\TikaExtractorService;
 use App\Service\LLM\OllamaLLMService;
 use App\Service\Neo4j\Neo4jConnectorService;
@@ -23,6 +24,7 @@ class HealthCheckController extends AbstractController
         private readonly TikaExtractorService $tikaExtractor,
         private readonly OllamaLLMService $llmService,
         private readonly Neo4jConnectorService $neo4jConnector,
+        private readonly RefreshTokenService $refreshTokenService,
         private readonly ParameterBagInterface $params,
         #[Autowire(service: 'messenger.transport.async')]
         private readonly ?TransportInterface $asyncTransport = null
@@ -35,9 +37,10 @@ class HealthCheckController extends AbstractController
         $tikaAvailable = $this->tikaExtractor->isAvailable();
         $ollamaAvailable = $this->llmService->isAvailable();
         $neo4jAvailable = $this->neo4jConnector->isAvailable();
+        $redisAvailable = $this->refreshTokenService->isAvailable();
         $messengerStatus = $this->checkMessengerStatus();
 
-        $allHealthy = $tikaAvailable && $ollamaAvailable && $neo4jAvailable && $messengerStatus['available'];
+        $allHealthy = $tikaAvailable && $ollamaAvailable && $neo4jAvailable && $redisAvailable && $messengerStatus['available'];
 
         return $this->json([
             'status' => $allHealthy ? 'healthy' : 'degraded',
@@ -53,6 +56,11 @@ class HealthCheckController extends AbstractController
                 'neo4j' => [
                     'status' => $neo4jAvailable ? 'up' : 'down',
                     'description' => 'Neo4j Graph Database',
+                ],
+                'redis' => [
+                    'status' => $redisAvailable ? 'up' : 'down',
+                    'description' => 'Redis Cache & Token Storage',
+                    'info' => $redisAvailable ? $this->refreshTokenService->getConnectionInfo() : null,
                 ],
                 'messenger' => [
                     'status' => $messengerStatus['available'] ? 'up' : 'down',

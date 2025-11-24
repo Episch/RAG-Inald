@@ -1,0 +1,7 @@
+framework:
+    cache:
+        pools:
+            cache.redis:
+                adapter: cache.adapter.redis
+                provider: redis://localhost:6379
+

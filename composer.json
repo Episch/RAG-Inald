@@ -12,6 +12,7 @@
         "laudis/neo4j-php-client": "^3.4",
         "lexik/jwt-authentication-bundle": "^3.1",
         "nelmio/cors-bundle": "^2.6",
+        "predis/predis": "^3.2",
         "symfony/asset": "7.2.*",
         "symfony/console": "7.2.*",
         "symfony/dotenv": "7.2.*",

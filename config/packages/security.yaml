@@ -31,7 +31,7 @@ security:
             stateless: true
             json_login:
                 check_path: /api/login
-                success_handler: lexik_jwt_authentication.handler.authentication_success
+                success_handler: App\Security\LoginSuccessHandler
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
 
         api:
@@ -42,6 +42,8 @@ security:
     # Access control
     access_control:
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
+        - { path: ^/api/token/revoke$, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
         - { path: ^/api/models, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: ROLE_USER }

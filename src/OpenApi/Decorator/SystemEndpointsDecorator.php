@@ -80,7 +80,20 @@ final class SystemEndpointsDecorator implements OpenApiFactoryInterface
                     ]
                 ]
             ],
-            '503' => ['description' => 'One or more services are down']
+            '503' => [
+                'description' => 'One or more services are down',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string']
+                            ]
+                        ]
+                    ]
+                ]
+            ]
         ];
 
         $operation = new Operation(
@@ -119,7 +132,18 @@ final class SystemEndpointsDecorator implements OpenApiFactoryInterface
                 ]
             ],
             '500' => [
-                'description' => 'Failed to list models'
+                'description' => 'Failed to list models',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'error' => ['type' => 'string'],
+                                'message' => ['type' => 'string']
+                            ]
+                        ]
+                    ]
+                ]
             ]
         ];
 
