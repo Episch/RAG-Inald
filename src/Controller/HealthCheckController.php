@@ -8,6 +8,7 @@ use App\Service\DocumentExtractor\TikaExtractorService;
 use App\Service\LLM\OllamaLLMService;
 use App\Service\Neo4j\Neo4jConnectorService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Messenger\Transport\TransportInterface;
@@ -22,7 +23,9 @@ class HealthCheckController extends AbstractController
         private readonly TikaExtractorService $tikaExtractor,
         private readonly OllamaLLMService $llmService,
         private readonly Neo4jConnectorService $neo4jConnector,
-        private readonly ParameterBagInterface $params
+        private readonly ParameterBagInterface $params,
+        #[Autowire(service: 'messenger.transport.async')]
+        private readonly ?TransportInterface $asyncTransport = null
     ) {
     }
 
@@ -63,36 +66,45 @@ class HealthCheckController extends AbstractController
     }
 
     /**
-     * Check Messenger status
+     * Check Messenger status by inspecting the actual transport
      */
     private function checkMessengerStatus(): array
     {
         try {
-            // Check if messenger is configured
-            $messengerConfig = $this->params->get('kernel.bundles');
-            
-            // Determine transport type from environment
-            $transport = 'in-memory';
-            $info = 'In-Memory Queue (Development)';
-            
-            if (isset($_ENV['MESSENGER_TRANSPORT_DSN'])) {
-                $dsn = $_ENV['MESSENGER_TRANSPORT_DSN'];
-                
-                if (str_starts_with($dsn, 'redis://')) {
-                    $transport = 'redis';
-                    $info = 'Redis Queue';
-                } elseif (str_starts_with($dsn, 'amqp://')) {
-                    $transport = 'rabbitmq';
-                    $info = 'RabbitMQ Queue';
-                } elseif (str_starts_with($dsn, 'doctrine://')) {
-                    $transport = 'doctrine';
-                    $info = 'Doctrine Database Queue';
-                } else {
-                    $transport = 'custom';
-                    $info = 'Custom Transport';
-                }
+            if ($this->asyncTransport === null) {
+                return [
+                    'available' => false,
+                    'transport' => 'not-configured',
+                    'info' => 'Async transport not available',
+                ];
             }
-            
+
+            // Determine transport type from the actual class
+            $transportClass = get_class($this->asyncTransport);
+            $transport = 'unknown';
+            $info = 'Unknown Transport';
+
+            // Check the actual transport class to determine type
+            if (str_contains($transportClass, 'InMemory')) {
+                $transport = 'in-memory';
+                $info = 'In-Memory Queue (Development - not persistent)';
+            } elseif (str_contains($transportClass, 'Redis')) {
+                $transport = 'redis';
+                $info = 'Redis Queue (Production-ready)';
+            } elseif (str_contains($transportClass, 'Amqp')) {
+                $transport = 'rabbitmq';
+                $info = 'RabbitMQ Queue (Production-ready)';
+            } elseif (str_contains($transportClass, 'Doctrine')) {
+                $transport = 'doctrine';
+                $info = 'Doctrine Database Queue';
+            } elseif (str_contains($transportClass, 'Sync')) {
+                $transport = 'sync';
+                $info = 'Synchronous Processing (no queue)';
+            } else {
+                $transport = 'custom';
+                $info = 'Custom Transport: ' . basename(str_replace('\\', '/', $transportClass));
+            }
+
             return [
                 'available' => true,
                 'transport' => $transport,
@@ -101,8 +113,8 @@ class HealthCheckController extends AbstractController
         } catch (\Exception $e) {
             return [
                 'available' => false,
-                'transport' => 'unknown',
-                'info' => 'Messenger not configured',
+                'transport' => 'error',
+                'info' => 'Failed to check messenger: ' . $e->getMessage(),
             ];
         }
     }
