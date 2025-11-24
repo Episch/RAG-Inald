@@ -146,46 +146,72 @@ RATE_LIMIT_ENABLED=false
 
 ## 🔗 **API Endpunkte**
 
-### **Authentication**
+### **Übersicht**
+
+| Kategorie | Endpunkt | Methode | Auth | Beschreibung |
+|-----------|----------|---------|------|--------------|
+| **Authentication** | `/api/login` | POST | ❌ | JWT Token erhalten |
+| | `/api/token/refresh` | POST | ❌ | Token erneuern |
+| | `/api/token/revoke` | POST | ❌ | Token widerrufen |
+| | `/api/token/revoke-all` | POST | ✅ Admin | Alle Tokens widerrufen |
+| **Requirements** | `/api/requirements/extract` | POST | ✅ | Dokument extrahieren |
+| | `/api/requirements/search` | POST | ✅ | Semantische Suche |
+| | `/api/requirements/jobs` | GET | ✅ | Jobs auflisten |
+| | `/api/requirements/jobs/{id}` | GET | ✅ | Job-Status abrufen |
+| **System** | `/api/health` | GET | ❌ | Health Check |
+| | `/api/models` | GET | ❌ | Verfügbare LLM-Modelle |
+| | `/api/docs` | GET | ❌ | OpenAPI Dokumentation |
+
+### **1. Authentication**
 
 ```bash
-# Login (JWT Token erhalten)
-curl -X POST http://localhost:8000/api/login \
+# Login
+curl -X POST https://localhost:8000/api/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
-    "password": "admin123"
+    "password": "password"
   }'
 
 # Response:
-# {"token": "eyJ0eXAiOiJKV1QiLCJhbGc..."}
+{
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "refresh_token": "abc123def456...",
+  "user": {
+    "email": "admin@example.com",
+    "roles": ["ROLE_ADMIN", "ROLE_USER"]
+  }
+}
 ```
 
-### **Requirements Extraction**
+### **2. Requirements Extraction**
 
 ```bash
-# 1. Requirements aus Dokument extrahieren
-curl -X POST http://localhost:8000/api/requirements/extract \
+# Dokument extrahieren (Async)
+curl -X POST https://localhost:8000/api/requirements/extract \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "documentPath": "/path/to/requirements.pdf",
-    "projectName": "My Software Project",
-    "extractionOptions": {
-      "llmModel": "llama3.2",
-      "temperature": 0.7,
-      "async": true
-    }
+    "projectName": "E-Commerce Platform",
+    "serverPath": "/path/to/requirements.xlsx",
+    "llmModel": "llama3.2",
+    "temperature": 0.7,
+    "async": true
   }'
 
 # Response:
-# {
-#   "id": "01932c8e-7b4a-7890-a123-456789abcdef",
-#   "status": "processing",
-#   "documentPath": "/path/to/requirements.pdf",
-#   "projectName": "My Software Project",
-#   "createdAt": "2025-01-15T10:30:00+00:00"
-# }
+{
+  "id": "019ab7a9-e7f2-7240-8fe4-8f9be45cc957",
+  "status": "processing",
+  "projectName": "E-Commerce Platform",
+  "documentPath": "/path/to/requirements.xlsx",
+  "createdAt": "2025-11-24T20:59:16+00:00",
+  "metadata": {
+    "llmModel": "llama3.2",
+    "temperature": 0.7,
+    "async": true
+  }
+}
 
 # 2. Job-Status abfragen
 curl -X GET http://localhost:8000/api/requirements/jobs/01932c8e-7b4a-7890-a123-456789abcdef \
