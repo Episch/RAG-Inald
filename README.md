@@ -213,23 +213,52 @@ curl -X POST https://localhost:8000/api/requirements/extract \
   }
 }
 
-# 2. Job-Status abfragen
-curl -X GET http://localhost:8000/api/requirements/jobs/01932c8e-7b4a-7890-a123-456789abcdef \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-
-# 3. Alle Jobs auflisten
-curl -X GET http://localhost:8000/api/requirements/jobs \
+# Job-Status prüfen
+curl -X GET https://localhost:8000/api/requirements/jobs/{id} \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-### **Health Checks**
+### **3. Semantic Search**
 
 ```bash
-# Service Status prüfen (ohne Auth)
-curl http://localhost:8000/api/health
+# Requirements durchsuchen
+curl -X POST https://localhost:8000/api/requirements/search \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Show me all authentication and security requirements",
+    "limit": 10,
+    "minSimilarity": 0.7
+  }'
+
+# Response:
+{
+  "query": "authentication requirements",
+  "results": [
+    {
+      "requirement": {
+        "identifier": "REQ-001",
+        "name": "User Authentication",
+        "description": "System shall support email/password login",
+        "requirementType": "functional",
+        "priority": "must"
+      },
+      "similarity": 0.87
+    }
+  ],
+  "count": 5,
+  "duration_seconds": 0.234
+}
+```
+
+### **4. System Status**
+
+```bash
+# Health Check (ohne Auth)
+curl https://localhost:8000/api/health
 
 # Verfügbare LLM-Modelle (ohne Auth)
-curl http://localhost:8000/api/models
+curl https://localhost:8000/api/models
 ```
 
 ---
