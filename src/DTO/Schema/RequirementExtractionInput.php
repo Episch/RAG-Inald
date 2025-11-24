@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\DTO\Input;
+namespace App\DTO\Schema;
 
 use ApiPlatform\Metadata\ApiProperty;
+use App\Validator\Constraints as AppAssert;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -15,6 +16,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * 2. Public URL (will be downloaded)
  * 3. Server file path (only for backend/admin use)
  */
+#[AppAssert\DocumentSource]
 class RequirementExtractionInput
 {
     #[ApiProperty(
@@ -103,17 +105,6 @@ class RequirementExtractionInput
         example: true
     )]
     public bool $async = true;
-
-    /**
-     * Validate that at least one document source is provided
-     */
-    #[Assert\IsTrue(message: 'You must provide either fileContent, documentUrl, or serverPath')]
-    public function hasDocumentSource(): bool
-    {
-        return $this->fileContent !== null 
-            || $this->documentUrl !== null 
-            || $this->serverPath !== null;
-    }
 
     /**
      * Validate that fileContent has corresponding fileName

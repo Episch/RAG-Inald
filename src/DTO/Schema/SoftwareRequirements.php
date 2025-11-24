@@ -17,7 +17,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * @see https://schema.org/SoftwareApplication (requirements property)
  * @see https://www.ireb.org/ (IREB Requirements Engineering)
  */
-class SoftwareRequirementsDTO
+class SoftwareRequirements
 {
     // ============================================
     // Core Identification (Schema.org + IREB)

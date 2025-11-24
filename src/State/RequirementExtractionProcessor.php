@@ -7,7 +7,8 @@ namespace App\State;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProcessorInterface;
 use App\ApiResource\RequirementExtractionJob;
-use App\DTO\Input\RequirementExtractionInput;
+use App\DTO\Schema\RequirementExtractionInput;
+use App\DTO\Schema\RequirementExtractionJobOutput;
 use App\Message\ExtractRequirementsMessage;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\HttpClient;
@@ -32,7 +33,7 @@ class RequirementExtractionProcessor implements ProcessorInterface
     /**
      * @param RequirementExtractionInput $data
      */
-    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): RequirementExtractionJob
+    public function process(mixed $data, Operation $operation, array $uriVariables = [], array $context = []): RequirementExtractionJobOutput
     {
         // Transform Input DTO to Job
         $job = $this->createJobFromInput($data);
@@ -75,7 +76,7 @@ class RequirementExtractionProcessor implements ProcessorInterface
             ]);
         }
 
-        return $job;
+        return RequirementExtractionJobOutput::fromJob($job);
     }
 
     /**

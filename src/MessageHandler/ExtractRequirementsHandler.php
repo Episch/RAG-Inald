@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\MessageHandler;
 
-use App\DTO\Schema\SoftwareApplicationDTO;
-use App\DTO\Schema\SoftwareRequirementsDTO;
+use App\DTO\Schema\SoftwareApplication;
+use App\DTO\Schema\SoftwareRequirements;
 use App\Message\ExtractRequirementsMessage;
 use App\Service\DocumentExtractor\TikaExtractorService;
 use App\Service\Embeddings\OllamaEmbeddingsService;
@@ -59,7 +59,7 @@ class ExtractRequirementsHandler
             $llmDuration = microtime(true) - $llmStart;
 
             // Step 3: Create Software Application DTO
-            $application = new SoftwareApplicationDTO(
+            $application = new SoftwareApplication(
                 name: $message->projectName,
                 description: "Requirements extracted from " . basename($message->documentPath),
                 requirements: $requirements
@@ -108,7 +108,7 @@ class ExtractRequirementsHandler
     /**
      * Extract requirements using LLM with TOON format
      * 
-     * @return SoftwareRequirementsDTO[]
+     * @return SoftwareRequirements[]
      */
     private function extractRequirementsWithLLM(string $documentText, string $projectName, array $options): array
     {
@@ -181,7 +181,7 @@ PROMPT;
     /**
      * Parse requirements from LLM response
      * 
-     * @return SoftwareRequirementsDTO[]
+     * @return SoftwareRequirements[]
      */
     private function parseRequirementsFromResponse(string $response): array
     {
@@ -191,7 +191,7 @@ PROMPT;
 
             if (isset($data['requirements']) && is_array($data['requirements'])) {
                 return array_map(
-                    fn($req) => SoftwareRequirementsDTO::fromArray($req),
+                    fn($req) => SoftwareRequirements::fromArray($req),
                     $data['requirements']
                 );
             }
@@ -199,7 +199,7 @@ PROMPT;
             // Fallback: parse entire response as TOON
             if (!empty($data)) {
                 return array_map(
-                    fn($req) => SoftwareRequirementsDTO::fromArray($req),
+                    fn($req) => SoftwareRequirements::fromArray($req),
                     array_values($data)
                 );
             }

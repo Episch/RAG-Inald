@@ -9,7 +9,7 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
-use App\DTO\Schema\SoftwareApplicationDTO;
+use App\DTO\Schema\SoftwareApplication;
 use App\State\RequirementExtractionProcessor;
 use App\State\RequirementExtractionProvider;
 use Symfony\Component\Uid\Uuid;
@@ -23,19 +23,22 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Get(
             uriTemplate: '/requirements/jobs/{id}',
             description: 'Get Requirements Extraction Job Status',
+            output: \App\DTO\Schema\RequirementExtractionJobOutput::class,
             provider: RequirementExtractionProvider::class,
             security: 'is_granted("ROLE_USER")'
         ),
         new GetCollection(
             uriTemplate: '/requirements/jobs',
             description: 'List Requirements Extraction Jobs',
+            output: \App\DTO\Schema\RequirementExtractionJobOutput::class,
             provider: RequirementExtractionProvider::class,
             security: 'is_granted("ROLE_USER")'
         ),
         new Post(
             uriTemplate: '/requirements/extract',
             description: 'Extract software requirements from document and start processing job',
-            input: \App\DTO\Input\RequirementExtractionInput::class,
+            input: \App\DTO\Schema\RequirementExtractionInput::class,
+            output: \App\DTO\Schema\RequirementExtractionJobOutput::class,
             processor: RequirementExtractionProcessor::class,
             security: 'is_granted("ROLE_USER")'
         ),
@@ -66,7 +69,7 @@ class RequirementExtractionJob
     public ?string $toonOutput = null;
 
     #[ApiProperty(writable: false)]
-    public ?SoftwareApplicationDTO $result = null;
+    public ?SoftwareApplication $result = null;
 
     #[ApiProperty(writable: false)]
     public ?string $neo4jNodeId = null;
@@ -100,7 +103,7 @@ class RequirementExtractionJob
         $this->status = 'processing';
     }
 
-    public function markAsCompleted(SoftwareApplicationDTO $result): void
+    public function markAsCompleted(SoftwareApplication $result): void
     {
         $this->status = 'completed';
         $this->result = $result;

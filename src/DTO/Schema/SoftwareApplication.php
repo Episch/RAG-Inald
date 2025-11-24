@@ -7,11 +7,11 @@ namespace App\DTO\Schema;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
- * Schema.org SoftwareApplication DTO
+ * Schema.org SoftwareApplication
  * 
  * @see https://schema.org/SoftwareApplication
  */
-class SoftwareApplicationDTO
+class SoftwareApplication
 {
     #[Assert\NotBlank]
     #[Assert\Type('string')]
@@ -30,7 +30,7 @@ class SoftwareApplicationDTO
     public ?string $operatingSystem = null;
 
     /**
-     * @var SoftwareRequirementsDTO[]
+     * @var SoftwareRequirements[]
      */
     #[Assert\Valid]
     public array $requirements = [];
@@ -62,7 +62,7 @@ class SoftwareApplicationDTO
         $this->requirements = $requirements;
     }
 
-    public function addRequirement(SoftwareRequirementsDTO $requirement): self
+    public function addRequirement(SoftwareRequirements $requirement): self
     {
         $this->requirements[] = $requirement;
         return $this;
@@ -87,7 +87,7 @@ class SoftwareApplicationDTO
             'license' => $this->license,
             'provider' => $this->provider,
             'requirements' => array_map(
-                fn(SoftwareRequirementsDTO $req) => $req->toArray(),
+                fn(SoftwareRequirements $req) => $req->toArray(),
                 $this->requirements
             ),
         ];

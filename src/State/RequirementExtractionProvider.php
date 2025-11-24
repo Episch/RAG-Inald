@@ -7,6 +7,7 @@ namespace App\State;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\State\ProviderInterface;
 use App\ApiResource\RequirementExtractionJob;
+use App\DTO\Schema\RequirementExtractionJobOutput;
 
 /**
  * API Platform State Provider for Requirements Extraction
@@ -17,11 +18,16 @@ class RequirementExtractionProvider implements ProviderInterface
     {
         // Get single job
         if (isset($uriVariables['id'])) {
-            return RequirementExtractionProcessor::getJob($uriVariables['id']);
+            $job = RequirementExtractionProcessor::getJob($uriVariables['id']);
+            return $job ? RequirementExtractionJobOutput::fromJob($job) : null;
         }
 
         // Get all jobs
-        return RequirementExtractionProcessor::getAllJobs();
+        $jobs = RequirementExtractionProcessor::getAllJobs();
+        return array_map(
+            fn($job) => RequirementExtractionJobOutput::fromJob($job),
+            $jobs
+        );
     }
 }
 
