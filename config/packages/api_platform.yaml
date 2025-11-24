@@ -27,6 +27,13 @@ api_platform:
     
     # Swagger UI Extra Configuration
     enable_swagger_ui: true
+    
+    # OpenAPI Documentation Formats
+    docs_formats:
+        jsonopenapi: ['application/vnd.openapi+json']
+        json: ['application/json']
+        html: ['text/html']
+    
     openapi:
         swagger_ui_extra_configuration:
             docExpansion: 'none'

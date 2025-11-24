@@ -389,8 +389,8 @@ final class AuthenticationDecorator implements OpenApiFactoryInterface
                         'schema' => [
                             'type' => 'object',
                             'properties' => [
-                                'message' => ['type' => 'string', 'example' => 'All refresh tokens revoked successfully'],
-                                'revoked_count' => ['type' => 'integer', 'example' => 3]
+                                'message' => ['type' => 'string', 'examples' => ['All refresh tokens revoked successfully']],
+                                'revoked_count' => ['type' => 'integer', 'examples' => [3]]
                             ]
                         ]
                     ]

@@ -202,25 +202,22 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                                 'maximum' => 1.0
                             ],
                             'requirementType' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'Filter by requirement type',
                                 'example' => 'security',
-                                'enum' => ['functional', 'non-functional', 'technical', 'business', 'security', 'performance', 'usability', 'other'],
-                                'nullable' => true
+                                'enum' => ['functional', 'non-functional', 'technical', 'business', 'security', 'performance', 'usability', 'other']
                             ],
                             'priority' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'Filter by priority level (MoSCoW)',
                                 'example' => 'must',
-                                'enum' => ['must', 'should', 'could', 'wont'],
-                                'nullable' => true
+                                'enum' => ['must', 'should', 'could', 'wont']
                             ],
                             'status' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'Filter by requirement status',
                                 'example' => 'approved',
-                                'enum' => ['draft', 'approved', 'implemented', 'verified', 'rejected', 'obsolete'],
-                                'nullable' => true
+                                'enum' => ['draft', 'approved', 'implemented', 'verified', 'rejected', 'obsolete']
                             ]
                         ]
                     ],
@@ -336,19 +333,17 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                                 'maxLength' => 255
                             ],
                             'fileContent' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'Base64-encoded document content (PDF, DOCX, TXT, MD)',
-                                'example' => 'JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK...',
-                                'nullable' => true
+                                'example' => 'JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK...'
                             ],
                             'fileName' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'Original filename (required if fileContent is provided)',
-                                'example' => 'requirements-specification.pdf',
-                                'nullable' => true
+                                'example' => 'requirements-specification.pdf'
                             ],
                             'mimeType' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'MIME type of the uploaded file',
                                 'example' => 'application/pdf',
                                 'enum' => [
@@ -357,21 +352,18 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                                     'text/plain',
                                     'text/markdown',
                                     'application/msword'
-                                ],
-                                'nullable' => true
+                                ]
                             ],
                             'documentUrl' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'Public URL to download the document from',
                                 'example' => 'https://example.com/docs/requirements.pdf',
-                                'format' => 'uri',
-                                'nullable' => true
+                                'format' => 'uri'
                             ],
                             'serverPath' => [
-                                'type' => 'string',
+                                'type' => ['string', 'null'],
                                 'description' => 'Server file path (only for backend/admin use)',
-                                'example' => '/var/www/uploads/requirements-doc.pdf',
-                                'nullable' => true
+                                'example' => '/var/www/uploads/requirements-doc.pdf'
                             ],
                             'llmModel' => [
                                 'type' => 'string',
