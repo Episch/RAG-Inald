@@ -3,6 +3,12 @@ api_platform:
     version: 1.0.0
     description: 'Software Requirements Extraction API with Schema.org & RAG'
     show_webby: false
+    
+    # Supported formats - JSON as primary, JSON-LD as secondary
+    formats:
+        json: ['application/json']
+        jsonld: ['application/ld+json']
+    
     defaults:
         stateless: true
         cache_headers:

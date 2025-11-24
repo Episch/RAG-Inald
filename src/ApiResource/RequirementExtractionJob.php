@@ -35,6 +35,7 @@ use Symfony\Component\Validator\Constraints as Assert;
         new Post(
             uriTemplate: '/requirements/extract',
             description: 'Extract software requirements from document and start processing job',
+            input: \App\DTO\Input\RequirementExtractionInput::class,
             processor: RequirementExtractionProcessor::class,
             security: 'is_granted("ROLE_USER")'
         ),

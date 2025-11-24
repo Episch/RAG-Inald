@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Service\Embeddings;
 
+use App\Exception\EmbeddingModelNotAvailableException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -35,6 +37,7 @@ class OllamaEmbeddingsService
      * Generate embeddings for text
      * 
      * @return float[] Vector embeddings
+     * @throws EmbeddingModelNotAvailableException
      */
     public function embed(string $text, ?string $model = null): array
     {
@@ -61,6 +64,26 @@ class OllamaEmbeddingsService
             ]);
 
             return $embeddings;
+        } catch (ClientExceptionInterface $e) {
+            // Check if it's a 404 - model not found
+            if (str_contains($e->getMessage(), '404') || str_contains($e->getMessage(), 'Not Found')) {
+                $availableModels = $this->getAvailableEmbeddingModels();
+                
+                $this->logger->error('Embedding model not available', [
+                    'requested_model' => $model,
+                    'available_models' => $availableModels,
+                ]);
+
+                throw new EmbeddingModelNotAvailableException($model, $availableModels, $e);
+            }
+
+            // Other HTTP errors
+            $this->logger->error('Embeddings generation failed (HTTP error)', [
+                'model' => $model,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new \RuntimeException("Failed to generate embeddings: {$e->getMessage()}", 0, $e);
         } catch (\Exception $e) {
             $this->logger->error('Embeddings generation failed', [
                 'model' => $model,
@@ -128,6 +151,59 @@ class OllamaEmbeddingsService
             'all-minilm' => 384,
             default => 768, // Default fallback
         };
+    }
+
+    /**
+     * Get list of available embedding models from Ollama
+     * 
+     * @return string[]
+     */
+    private function getAvailableEmbeddingModels(): array
+    {
+        try {
+            $response = $this->client->request('GET', "{$this->ollamaUrl}/api/tags");
+            $data = $response->toArray();
+            
+            // Known embedding model patterns
+            $embeddingPatterns = ['embed', 'embedding', 'minilm', 'mxbai'];
+            
+            $embeddingModels = [];
+            foreach ($data['models'] ?? [] as $model) {
+                $modelName = $model['name'] ?? '';
+                
+                // Check if it's an embedding model
+                foreach ($embeddingPatterns as $pattern) {
+                    if (stripos($modelName, $pattern) !== false) {
+                        $embeddingModels[] = $modelName;
+                        break;
+                    }
+                }
+            }
+
+            return $embeddingModels;
+        } catch (\Exception $e) {
+            $this->logger->warning('Could not fetch available models from Ollama', [
+                'error' => $e->getMessage(),
+            ]);
+            
+            return [];
+        }
+    }
+
+    /**
+     * Check if Ollama is running and responsive
+     */
+    public function isAvailable(): bool
+    {
+        try {
+            $response = $this->client->request('GET', "{$this->ollamaUrl}/api/tags", [
+                'timeout' => 2,
+            ]);
+            
+            return $response->getStatusCode() === 200;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 }
 

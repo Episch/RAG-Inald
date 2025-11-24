@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Exception\EmbeddingModelNotAvailableException;
 use App\Service\Embeddings\OllamaEmbeddingsService;
 use App\Service\Neo4j\Neo4jConnectorService;
 use Psr\Log\LoggerInterface;
@@ -55,7 +56,7 @@ class RequirementsSearchController extends AbstractController
                 'query' => $query,
             ]);
 
-            $queryEmbedding = $this->embeddingsService->generateEmbedding($query);
+            $queryEmbedding = $this->embeddingsService->embed($query);
 
             // 2. Search similar requirements in Neo4j
             $this->logger->info('Searching similar requirements in Neo4j', [
@@ -77,6 +78,18 @@ class RequirementsSearchController extends AbstractController
                     'embedding_dimensions' => count($queryEmbedding),
                 ],
             ]);
+        } catch (EmbeddingModelNotAvailableException $e) {
+            $this->logger->error('Embedding model not available', [
+                'query' => $query,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->json([
+                'error' => 'Embedding model not available',
+                'message' => $e->getMessage(),
+                'query' => $query,
+                'type' => 'MODEL_NOT_FOUND',
+            ], 503); // Service Unavailable
         } catch (\Exception $e) {
             $this->logger->error('Semantic search failed', [
                 'query' => $query,
@@ -107,7 +120,7 @@ class RequirementsSearchController extends AbstractController
 
         try {
             // Generate embedding and search
-            $queryEmbedding = $this->embeddingsService->generateEmbedding($query);
+            $queryEmbedding = $this->embeddingsService->embed($query);
             $results = $this->neo4jConnector->searchSimilarRequirements($queryEmbedding, $limit);
 
             // If no results found, suggest refining the query
@@ -126,6 +139,13 @@ class RequirementsSearchController extends AbstractController
                 'count' => count($results),
                 'limit' => $limit,
             ]);
+        } catch (EmbeddingModelNotAvailableException $e) {
+            return $this->json([
+                'error' => 'Embedding model not available',
+                'message' => $e->getMessage(),
+                'query' => $query,
+                'type' => 'MODEL_NOT_FOUND',
+            ], 503);
         } catch (\Exception $e) {
             return $this->json([
                 'error' => 'Search failed',

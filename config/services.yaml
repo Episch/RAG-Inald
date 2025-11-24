@@ -38,6 +38,8 @@ services:
 
     # API Platform State Processors/Providers
     App\State\RequirementExtractionProcessor:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
         tags:
             - { name: 'api_platform.state_processor' }
 
@@ -45,10 +47,37 @@ services:
         tags:
             - { name: 'api_platform.state_provider' }
 
-    # OpenAPI Customization
-    App\OpenApi\LoginExampleDecorator:
+    # OpenAPI Customization - Decorator Chain
+    # Each decorator enhances the OpenAPI documentation
+    # They run in order based on decoration_priority (lower numbers run later)
+    
+    App\OpenApi\Decorator\AuthenticationDecorator:
         decorates: 'api_platform.openapi.factory'
-        decoration_priority: -20  # Run after Lexik JWT decorator (which has priority -10)
+        decoration_priority: -20  # Run after Lexik JWT decorator
+        arguments:
+            $decorated: '@.inner'
+    
+    App\OpenApi\Decorator\RequirementsDecorator:
+        decorates: 'api_platform.openapi.factory'
+        decoration_priority: -30
+        arguments:
+            $decorated: '@.inner'
+    
+    App\OpenApi\Decorator\SystemEndpointsDecorator:
+        decorates: 'api_platform.openapi.factory'
+        decoration_priority: -40
+        arguments:
+            $decorated: '@.inner'
+    
+    App\OpenApi\Decorator\ErrorResponsesDecorator:
+        decorates: 'api_platform.openapi.factory'
+        decoration_priority: -50
+        arguments:
+            $decorated: '@.inner'
+    
+    App\OpenApi\Decorator\TagsDecorator:
+        decorates: 'api_platform.openapi.factory'
+        decoration_priority: -60  # Run last to ensure proper tag ordering
         arguments:
             $decorated: '@.inner'
 
