@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace App\Service\LLM;
 
-use HelgeSverre\Toon\Toon;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * Ollama LLM Service with TOON Format Support
+ * Ollama LLM Service
  * 
- * Uses TOON (Token-Oriented Object Notation) for efficient token usage
- * @see https://github.com/HelgeSverre/toon-php
+ * Provides integration with Ollama for LLM text generation
  */
 class OllamaLLMService
 {
@@ -31,10 +29,10 @@ class OllamaLLMService
     }
 
     /**
-     * Generate text with TOON-formatted context
+     * Generate text with JSON-formatted context
      * 
      * @param string $prompt The main prompt
-     * @param array $context Context data (will be converted to TOON format)
+     * @param array $context Context data (will be converted to JSON format)
      * @param array $options Generation options (model, temperature, etc.)
      * @return array LLM response with metadata
      */
@@ -42,13 +40,13 @@ class OllamaLLMService
     {
         $model = $options['model'] ?? $this->defaultModel;
         $temperature = $options['temperature'] ?? 0.7;
-        $maxTokens = $options['max_tokens'] ?? 2048;
+        $maxTokens = $options['max_tokens'] ?? 32768;  // Very high for complete extraction (depends on model capacity)
 
-        // Convert context to TOON format (50% token savings vs JSON!)
-        $toonContext = !empty($context) ? $this->encodeToToon($context) : '';
+        // Convert context to JSON format
+        $jsonContext = !empty($context) ? json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : '';
 
-        // Build complete prompt with TOON context
-        $fullPrompt = $this->buildPromptWithContext($prompt, $toonContext);
+        // Build complete prompt with JSON context
+        $fullPrompt = $this->buildPromptWithContext($prompt, $jsonContext);
 
         $startTime = microtime(true);
 
@@ -58,6 +56,7 @@ class OllamaLLMService
                     'model' => $model,
                     'prompt' => $fullPrompt,
                     'stream' => false,
+                    'format' => 'json',  // Force JSON output (Ollama 0.5+)
                     'options' => [
                         'temperature' => $temperature,
                         'num_predict' => $maxTokens,
@@ -73,14 +72,14 @@ class OllamaLLMService
                 'prompt_length' => strlen($fullPrompt),
                 'response_length' => strlen($data['response'] ?? ''),
                 'duration_seconds' => round($duration, 3),
-                'toon_context_size' => strlen($toonContext),
+                'json_context_size' => strlen($jsonContext),
             ]);
 
             return [
                 'response' => $data['response'] ?? '',
                 'model' => $model,
                 'duration_seconds' => $duration,
-                'toon_context_size' => strlen($toonContext),
+                'json_context_size' => strlen($jsonContext),
                 'total_tokens' => $data['eval_count'] ?? null,
                 'prompt_tokens' => $data['prompt_eval_count'] ?? null,
             ];
@@ -164,62 +163,23 @@ class OllamaLLMService
     }
 
     /**
-     * Encode data to TOON format
-     * 
-     * TOON achieves ~50% token savings compared to JSON
+     * Build prompt with JSON context
      */
-    private function encodeToToon(array $data): string
+    private function buildPromptWithContext(string $prompt, string $jsonContext): string
     {
-        return Toon::encode($data, indent: 2);
-    }
-
-    /**
-     * Build prompt with TOON context
-     */
-    private function buildPromptWithContext(string $prompt, string $toonContext): string
-    {
-        if (empty($toonContext)) {
+        if (empty($jsonContext)) {
             return $prompt;
         }
 
         return <<<PROMPT
-Context (TOON format):
-```
-{$toonContext}
+Context (JSON format):
+```json
+{$jsonContext}
 ```
 
 {$prompt}
 PROMPT;
     }
 
-    /**
-     * Parse LLM response as TOON format
-     */
-    public function parseToonResponse(string $response): array
-    {
-        // Extract TOON block from response
-        if (preg_match('/```(?:toon)?\s*(.*?)```/s', $response, $matches)) {
-            $toonContent = trim($matches[1]);
-            
-            try {
-                return Toon::decode($toonContent);
-            } catch (\Throwable $e) {
-                $this->logger->warning('Failed to parse TOON response', [
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        // Fallback: try to parse entire response
-        try {
-            return Toon::decode($response);
-        } catch (\Throwable $e) {
-            $this->logger->warning('Failed to parse response as TOON', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return [];
-        }
-    }
 }
 

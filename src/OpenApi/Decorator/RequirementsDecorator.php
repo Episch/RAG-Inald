@@ -327,7 +327,7 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                         'properties' => [
                             'projectName' => [
                                 'type' => 'string',
-                                'description' => 'Name of the project/software being analyzed',
+                                'description' => 'Name of the project/software being analyzed. IMPORTANT: Use the exact same name for multiple extractions of the same project to prevent duplicate application nodes in Neo4j. Names are matched case-insensitively.',
                                 'example' => 'E-Commerce Platform v2.0',
                                 'minLength' => 3,
                                 'maxLength' => 255
@@ -434,7 +434,7 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
             ->withRequestBody($requestBody)
             ->withResponses($responses)
             ->withSummary('Extract Requirements from Document')
-            ->withDescription('Extracts software requirements from a document using AI/LLM. Supports three upload methods: Base64 file upload, URL download, or server file path.');
+            ->withDescription('Extracts software requirements from a document using AI/LLM and stores them in Neo4j. **UPSERT Behavior:** Applications are matched by `projectName` (case-insensitive). Multiple extractions with the same project name will update the existing application node and add new requirements, preventing duplicates. Supports three upload methods: Base64 file upload, URL download, or server file path.');
 
         $pathItem = $pathItem->withPost($newOperation);
         $openApi->getPaths()->addPath('/api/requirements/extract', $pathItem);

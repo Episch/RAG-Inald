@@ -86,12 +86,13 @@ class RequirementsSearchController extends AbstractController
             ]);
 
             $results = $this->neo4jConnector->searchSimilarRequirements(
-                $queryEmbedding,
-                $searchInput->limit,
-                $searchInput->minSimilarity,
-                $searchInput->requirementType,
-                $searchInput->priority,
-                $searchInput->status
+                queryEmbedding: $queryEmbedding,
+                queryText: $searchInput->query,
+                limit: $searchInput->limit,
+                minSimilarity: $searchInput->minSimilarity,
+                requirementType: $searchInput->requirementType,
+                priority: $searchInput->priority,
+                status: $searchInput->status
             );
 
             $duration = microtime(true) - $startTime;
@@ -156,7 +157,11 @@ class RequirementsSearchController extends AbstractController
         try {
             // Generate embedding and search
             $queryEmbedding = $this->embeddingsService->embed($query);
-            $results = $this->neo4jConnector->searchSimilarRequirements($queryEmbedding, $limit);
+            $results = $this->neo4jConnector->searchSimilarRequirements(
+                queryEmbedding: $queryEmbedding,
+                queryText: $query,
+                limit: $limit
+            );
 
             // If no results found, suggest refining the query
             if (empty($results)) {

@@ -11,7 +11,6 @@ use App\Service\DocumentExtractor\DocumentExtractionRouter;
 use App\Service\Embeddings\OllamaEmbeddingsService;
 use App\Service\LLM\OllamaLLMService;
 use App\Service\Neo4j\Neo4jConnectorService;
-use HelgeSverre\Toon\Toon;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -20,7 +19,7 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
  * 
  * Pipeline:
  * 1. Extract text from document (Format Router → Parsers)
- * 2. Send to LLM with TOON-formatted prompt
+ * 2. Send to LLM with JSON-formatted prompt
  * 3. Parse requirements from LLM response
  * 4. Generate embeddings (Ollama)
  * 5. Store in Neo4j graph database
@@ -61,7 +60,7 @@ class ExtractRequirementsHandler
                 'text_length' => strlen($extractionResult['text']),
             ]);
 
-            // Step 2: Generate requirements using LLM with TOON format
+            // Step 2: Generate requirements using LLM with JSON format
             $llmStart = microtime(true);
             $requirements = $this->extractRequirementsWithLLM(
                 $extractionResult['text'],
@@ -120,7 +119,7 @@ class ExtractRequirementsHandler
     }
 
     /**
-     * Extract requirements using LLM with TOON format
+     * Extract requirements using LLM with JSON format
      * 
      * @return SoftwareRequirements[]
      */
@@ -129,14 +128,31 @@ class ExtractRequirementsHandler
         // Build extraction prompt
         $prompt = $this->buildExtractionPrompt($projectName);
 
-        // Context as TOON format (for token efficiency)
+        // Context as JSON format
         $context = [
             'project_name' => $projectName,
             'document_text' => $documentText,
         ];
 
+        // Ensure very high token limit for complete extraction (model-dependent)
+        // Note: llama3.2 supports up to 128k context, but generation is limited
+        $options['max_tokens'] = $options['max_tokens'] ?? 32768;
+
+        $this->logger->info('Starting LLM extraction', [
+            'document_length' => strlen($documentText),
+            'max_tokens' => $options['max_tokens'],
+            'model' => $options['model'] ?? 'default',
+        ]);
+
         // Generate with LLM
         $response = $this->llmService->generate($prompt, $context, $options);
+
+        $this->logger->info('LLM generation completed', [
+            'response_length' => strlen($response['response']),
+            'tokens_used' => $response['eval_count'] ?? 'unknown',
+            'generation_duration_seconds' => isset($response['total_duration']) ? round($response['total_duration'] / 1_000_000_000, 2) : 'unknown',
+            'response_preview' => substr($response['response'], 0, 300),
+        ]);
 
         // Parse requirements from response
         return $this->parseRequirementsFromResponse($response['response']);
@@ -148,47 +164,61 @@ class ExtractRequirementsHandler
     private function buildExtractionPrompt(string $projectName): string
     {
         return <<<PROMPT
-You are a requirements engineer analyzing software requirements documents.
+You are a precise requirements extraction tool. Your ONLY task is to extract requirements that are EXPLICITLY stated in the provided document.
 
-Your task: Extract all software requirements from the provided document text and structure them according to Schema.org SoftwareRequirement format.
+⚠️ CRITICAL: DO NOT invent, assume, or add requirements that are not directly mentioned in the document text!
 
-For each requirement, provide:
-- identifier: Unique ID (e.g., REQ-001, FR-01, NFR-01)
-- name: Short title
-- description: Detailed description
-- requirementType: One of: functional, non-functional, technical, business, security, performance, usability
-- priority: One of: must, should, could, wont (MoSCoW method)
-- category: Optional grouping (e.g., "User Management", "Authentication")
-- tags: Array of relevant keywords
+EXTRACTION RULES:
+1. Extract ONLY what is EXPLICITLY written in the document
+2. Do NOT add common/typical requirements unless they are in the document
+3. Do NOT make assumptions about what the system "should" have
+4. If the document mentions 8 requirements, extract exactly 8 (not 15, not 20)
+5. Use ENGLISH for all output fields (translate if source is German/other language)
+6. Keep names SHORT (max 5-8 words)
+7. Always respond with valid JSON wrapped in ```json code blocks
 
-Output the requirements in TOON format like this:
+OUTPUT FORMAT (IREB-enhanced):
 
-```toon
-requirements[3]:
-  - identifier: REQ-001
-    name: User Login
-    description: The system shall allow users to log in using email and password
-    requirementType: functional
-    priority: must
-    category: Authentication
-    tags[2]: login, security
-  - identifier: REQ-002
-    name: Response Time
-    description: The system shall respond to user actions within 200ms
-    requirementType: performance
-    priority: should
-    category: Performance
-    tags[1]: performance
-  - identifier: REQ-003
-    name: Data Encryption
-    description: All user data must be encrypted at rest using AES-256
-    requirementType: security
-    priority: must
-    category: Security
-    tags[2]: encryption, security
+```json
+{
+  "requirements": [
+    {
+      "identifier": "FR-001",
+      "name": "User Authentication",
+      "description": "The system shall allow users to authenticate using email and password. The system must support password reset functionality and enforce strong password policies (min 8 characters, mixed case, numbers, special characters).",
+      "requirementType": "functional",
+      "priority": "must",
+      "category": "User Management",
+      "tags": ["authentication", "login", "security"],
+      "rationale": "Users need secure access to protect personal data and comply with GDPR regulations.",
+      "acceptanceCriteria": "Given a user on the login page, when valid credentials are entered, then access to the dashboard is granted within 2 seconds.",
+      "source": "document"
+    }
+  ]
+}
 ```
 
-Analyze the document and extract ALL requirements.
+FIELD RULES (IREB-standard):
+- identifier: FR-XXX (functional), SEC-XXX (security), PERF-XXX (performance), BUS-XXX (business), UX-XXX (usability), NFR-XXX (non-functional)
+- name: Short, clear title (max 8 words) - NO prefixes!
+- description: "The system shall..." + specific details
+- requirementType: functional | security | performance | business | usability | non-functional
+- priority: must | should | could | wont (MoSCoW method)
+- category: NEVER empty! (e.g., "User Management", "Data Security", "Performance")
+- tags: 2-4 lowercase keywords
+- rationale: WHY does this requirement exist? What problem does it solve?
+- acceptanceCriteria: HOW to verify? (Given-When-Then format if possible)
+- source: "document" (always this value for extracted requirements)
+
+EXTRACTION INSTRUCTIONS:
+1. Read the ENTIRE document carefully
+2. Extract EVERY requirement mentioned (no limit, no truncation)
+3. DO NOT skip requirements due to length - include ALL of them
+4. Translate to English if needed
+5. Fill ALL fields (especially category - never leave empty)
+6. Use sequential identifiers (FR-001, FR-002, ... FR-N)
+
+Now extract ALL requirements from the document text.
 PROMPT;
     }
 
@@ -200,25 +230,61 @@ PROMPT;
     private function parseRequirementsFromResponse(string $response): array
     {
         try {
-            // Try to parse as TOON format
-            $data = $this->llmService->parseToonResponse($response);
+            // Parse JSON response from LLM (wrapped in code blocks)
+            if (preg_match('/```json\s*(.*?)```/s', $response, $matches)) {
+                $jsonContent = trim($matches[1]);
+                $data = json_decode($jsonContent, true);
+                
+                if (json_last_error() === JSON_ERROR_NONE && isset($data['requirements'])) {
+                    $rawRequirements = $data['requirements'];
+                    
+                    // Post-process and validate requirements
+                    $requirements = $this->validateAndCleanRequirements($rawRequirements);
+                    
+                    $this->logger->info('Parsed and validated requirements from JSON response', [
+                        'raw_count' => count($rawRequirements),
+                        'final_count' => count($requirements),
+                        'removed_duplicates' => count($rawRequirements) - count($requirements),
+                    ]);
+                    
+                    // Warn if the response seems truncated (ends mid-JSON or with incomplete structure)
+                    if (count($requirements) > 0 && (substr($jsonContent, -50) !== substr(trim($jsonContent), -50) || !str_ends_with(trim($jsonContent), '}'))) {
+                        $this->logger->warning('LLM response may be truncated - not all requirements might have been extracted', [
+                            'extracted_count' => count($requirements),
+                            'response_length' => strlen($response),
+                        ]);
+                    }
+                    
+                    return array_map(
+                        fn($req) => SoftwareRequirements::fromArray($req),
+                        $requirements
+                    );
+                }
+            }
 
-            if (isset($data['requirements']) && is_array($data['requirements'])) {
+            // Fallback: Try to parse raw JSON (without code blocks)
+            $data = json_decode($response, true);
+            if (json_last_error() === JSON_ERROR_NONE && isset($data['requirements'])) {
+                $rawRequirements = $data['requirements'];
+                $requirements = $this->validateAndCleanRequirements($rawRequirements);
+                
+                $this->logger->info('Parsed and validated requirements from raw JSON response', [
+                    'raw_count' => count($rawRequirements),
+                    'final_count' => count($requirements),
+                ]);
+                
                 return array_map(
                     fn($req) => SoftwareRequirements::fromArray($req),
-                    $data['requirements']
+                    $requirements
                 );
             }
 
-            // Fallback: parse entire response as TOON
-            if (!empty($data)) {
-                return array_map(
-                    fn($req) => SoftwareRequirements::fromArray($req),
-                    array_values($data)
-                );
-            }
-
-            $this->logger->warning('No requirements found in LLM response');
+            $this->logger->warning('No requirements found in LLM response', [
+                'response_preview' => substr($response, 0, 500),
+                'response_length' => strlen($response),
+                'json_error' => json_last_error_msg(),
+                'full_response' => $response, // DEBUG: full response for analysis
+            ]);
             return [];
 
         } catch (\Throwable $e) {
@@ -230,6 +296,127 @@ PROMPT;
 
             return [];
         }
+    }
+
+    /**
+     * Validate and clean requirements (remove duplicates, fill empty categories)
+     * 
+     * @param array $requirements Raw requirements from LLM
+     * @return array Cleaned and validated requirements
+     */
+    private function validateAndCleanRequirements(array $requirements): array
+    {
+        $cleaned = [];
+        $seenNames = [];
+        $seenDescriptions = [];
+
+        foreach ($requirements as $req) {
+            // Skip if name or description is duplicate (fuzzy match)
+            $nameLower = strtolower(trim($req['name'] ?? ''));
+            $descLower = strtolower(trim($req['description'] ?? ''));
+            
+            // Check for exact duplicates
+            if (in_array($nameLower, $seenNames, true)) {
+                $this->logger->debug('Skipping duplicate requirement (by name)', [
+                    'name' => $req['name'] ?? 'unknown',
+                ]);
+                continue;
+            }
+            
+            // Check for similar descriptions (first 100 chars)
+            $descPreview = substr($descLower, 0, 100);
+            if (in_array($descPreview, $seenDescriptions, true)) {
+                $this->logger->debug('Skipping duplicate requirement (by description)', [
+                    'name' => $req['name'] ?? 'unknown',
+                ]);
+                continue;
+            }
+            
+            // Fill empty category based on requirementType
+            if (empty($req['category'])) {
+                $req['category'] = $this->inferCategory($req);
+                $this->logger->debug('Auto-filled empty category', [
+                    'requirement' => $req['identifier'] ?? 'unknown',
+                    'category' => $req['category'],
+                ]);
+            }
+            
+            // Validate identifier format (should match type prefix)
+            if (isset($req['identifier'], $req['requirementType'])) {
+                $req['identifier'] = $this->normalizeIdentifier($req['identifier'], $req['requirementType']);
+            }
+            
+            $seenNames[] = $nameLower;
+            $seenDescriptions[] = $descPreview;
+            $cleaned[] = $req;
+        }
+
+        return $cleaned;
+    }
+
+    /**
+     * Infer category from requirement type and name
+     */
+    private function inferCategory(array $requirement): string
+    {
+        $type = $requirement['requirementType'] ?? '';
+        $name = strtolower($requirement['name'] ?? '');
+
+        // Category mapping based on type and name keywords
+        $categoryMap = [
+            'security' => 'Security & Compliance',
+            'performance' => 'Performance & Scalability',
+            'usability' => 'User Experience',
+        ];
+
+        if (isset($categoryMap[$type])) {
+            return $categoryMap[$type];
+        }
+
+        // Infer from name keywords
+        if (str_contains($name, 'user') || str_contains($name, 'profile') || str_contains($name, 'auth') || str_contains($name, 'login')) {
+            return 'User Management';
+        }
+        if (str_contains($name, 'payment') || str_contains($name, 'order') || str_contains($name, 'cart')) {
+            return 'E-Commerce';
+        }
+        if (str_contains($name, 'search') || str_contains($name, 'recommendation') || str_contains($name, 'personalization')) {
+            return 'Search & Recommendations';
+        }
+        if (str_contains($name, 'data') || str_contains($name, 'backup') || str_contains($name, 'recovery')) {
+            return 'Data Management';
+        }
+        if (str_contains($name, 'integration') || str_contains($name, 'api')) {
+            return 'Integration';
+        }
+
+        return 'General';
+    }
+
+    /**
+     * Normalize identifier to match requirement type
+     */
+    private function normalizeIdentifier(string $identifier, string $type): string
+    {
+        // Extract number from identifier
+        if (preg_match('/(\d+)$/', $identifier, $matches)) {
+            $number = $matches[1];
+            
+            // Map type to prefix
+            $prefixMap = [
+                'functional' => 'FR',
+                'non-functional' => 'NFR',
+                'security' => 'SEC',
+                'performance' => 'PERF',
+                'usability' => 'UX',
+                'business' => 'BUS',
+            ];
+            
+            $prefix = $prefixMap[$type] ?? 'REQ';
+            return sprintf('%s-%03d', $prefix, (int)$number);
+        }
+
+        return $identifier;
     }
 }
 

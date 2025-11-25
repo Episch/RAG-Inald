@@ -319,7 +319,7 @@ class SoftwareRequirements
     }
 
     /**
-     * Convert to array for TOON encoding (Schema.org + IREB extended)
+     * Convert to array for JSON encoding (Schema.org + IREB extended)
      */
     public function toArray(): array
     {

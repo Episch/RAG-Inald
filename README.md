@@ -1,13 +1,13 @@
 # 🧠 RAGinald - Software Requirements Extraction
 
-Eine **production-ready RAG-Pipeline** für **Software Requirements Extraction** basierend auf **Symfony**, **API Platform**, **TOON Format**, **Ollama LLM**, und **Neo4j** für intelligente Dokumentenverarbeitung und semantische Suche.
+Eine **production-ready RAG-Pipeline** für **Software Requirements Extraction** basierend auf **Symfony**, **API Platform**, **Ollama LLM**, und **Neo4j** für intelligente Dokumentenverarbeitung und semantische Suche.
 
 ## 🎯 **Überblick**
 
 Diese Anwendung extrahiert automatisch Software-Requirements aus Dokumenten und strukturiert sie nach **Schema.org Standards** (`SoftwareApplication` + `SoftwareRequirements`):
 
 - 📄 **Intelligente Dokumenten-Extraktion** (Format Router + Native Parser für PDF/Excel/Word/Markdown)
-- 🤖 **LLM-basierte Requirements-Analyse** (Ollama mit TOON Format)
+- 🤖 **LLM-basierte Requirements-Analyse** (Ollama mit JSON Format)
 - 📊 **Schema.org DTO Mapping** (SoftwareApplication/Requirements)
 - 🔢 **Vektorisierung** (Ollama Embeddings)
 - 🗄️ **Graph-Datenbank Speicherung** (Neo4j)
@@ -277,7 +277,7 @@ graph TB
     C -->|Markdown| D4[Markdown Parser]
     C -->|Fallback| D5[Tika Universal]
     D1 & D2 & D3 & D4 & D5 --> E[Text Extraction]
-    E --> F[LLM Analysis mit TOON]
+    E --> F[LLM Analysis mit JSON]
     F --> G[Schema.org DTO Mapping]
     G --> H[Ollama Embeddings]
     H --> I[Neo4j Graph Storage]
@@ -305,34 +305,16 @@ Intelligente Format-Erkennung und Parser-Selection:
 - ✅ **Images** (OCR via Tesseract - optional)
 - ✅ **Alle anderen** (Apache Tika Fallback)
 
-### **TOON Format - Token-Optimierung**
+### **JSON Format für LLM-Kommunikation**
 
-Diese Anwendung nutzt **[TOON (Token-Oriented Object Notation)](https://github.com/HelgeSverre/toon-php)** für LLM-Kommunikation:
+Die Anwendung nutzt **strukturiertes JSON** für zuverlässige LLM-Kommunikation:
 
-- ✅ **~50% Token-Ersparnis** gegenüber JSON
-- ✅ **~68% Token-Ersparnis** gegenüber XML
-- ✅ Bessere LLM-Verständlichkeit durch strukturierte Notation
-- ✅ Kompakte Arrays und Objekte
+- ✅ **Standardisiert**: Universelles, weit verbreitetes Format
+- ✅ **Zuverlässig**: Native PHP 8.3+ Unterstützung
+- ✅ **Type-safe**: Starke Typisierung mit DTOs
+- ✅ **Kompatibel**: Keine Drittanbieter-Abhängigkeiten
 
 **Beispiel:**
-
-```toon
-requirements[3]:
-  - identifier: REQ-001
-    name: User Authentication
-    description: System shall support email/password login
-    requirementType: functional
-    priority: must
-    tags[2]: auth, security
-  - identifier: REQ-002
-    name: Response Time
-    description: API responses within 200ms
-    requirementType: performance
-    priority: should
-    tags[1]: performance
-```
-
-vs. JSON (deutlich länger):
 
 ```json
 {
@@ -345,7 +327,14 @@ vs. JSON (deutlich länger):
       "priority": "must",
       "tags": ["auth", "security"]
     },
-    ...
+    {
+      "identifier": "REQ-002",
+      "name": "Response Time",
+      "description": "API responses within 200ms",
+      "requirementType": "performance",
+      "priority": "should",
+      "tags": ["performance"]
+    }
   ]
 }
 ```
@@ -380,11 +369,11 @@ $requirement = new SoftwareRequirementsDTO(
 
 ## ⚡ **Performance Features**
 
-### **Token-Optimierung mit TOON**
+### **Optimierte LLM-Kommunikation**
 
-- **Durchschnittliche Ersparnis**: 50% vs JSON, 68% vs XML
-- **Beispiel**: 10.000 Token (JSON) → 5.000 Token (TOON)
-- **Kosten-Reduktion**: ~50% bei Token-basierten APIs
+- **Strukturiertes JSON**: Zuverlässiges, standardisiertes Format
+- **Type-safe DTOs**: Schema.org konforme Datenstrukturen
+- **Effiziente Prompts**: Klare Anweisungen für LLM-Antworten
 
 ### **Asynchrone Verarbeitung**
 
@@ -413,6 +402,167 @@ $requirement = new SoftwareRequirementsDTO(
 - Symfony Validator Constraints
 - Path Traversal Protection
 - Schema.org DTO Validation
+
+---
+
+## 📊 **IREB Graph-Struktur**
+
+Das System nutzt die **IREB-Standards** (International Requirements Engineering Board) für Requirements Management in Neo4j.
+
+### Node-Typ: SoftwareRequirement
+
+**Labels**: `SoftwareRequirement`
+
+**Core Properties** (immer vorhanden):
+- `identifier`: Eindeutige ID (FR-001, SEC-002, etc.)
+- `name`: Kurzer Titel
+- `description`: Detaillierte Beschreibung
+- `requirementType`: functional | security | performance | business | usability | non-functional
+- `priority`: must | should | could | wont (MoSCoW)
+- `status`: draft | proposed | approved | implemented | verified | rejected | obsolete
+- `category`: Fachliche Kategorie (nie leer!)
+- `tags`: Array von Keywords
+
+**IREB Properties** (erweitert):
+- `rationale`: WARUM existiert dieses Requirement?
+- `acceptanceCriteria`: WIE wird es getestet?
+- `verificationMethod`: test | inspection | analysis | demonstration | review
+- `validationCriteria`: WIE wird validiert, dass es das richtige Problem löst?
+- `source`: Herkunft (document, stakeholder, interview, etc.)
+- `stakeholder`: Verantwortlicher Stakeholder
+- `author`: Ersteller/Autor
+- `involvedStakeholders`: Array aller Beteiligten
+- `constraints`: Randbedingungen/Einschränkungen (Array)
+- `assumptions`: Annahmen (Array)
+- `dependencies`: Object mit `dependsOn`, `conflicts`, `extends` Arrays
+- `risks`: Zugehörige Risiken (Array)
+- `riskLevel`: low | medium | high | critical | none
+- `estimatedEffort`: Geschätzter Aufwand
+- `actualEffort`: Tatsächlicher Aufwand
+- `traceabilityTo`: Rückverfolgbarkeit zu Business-Zielen
+- `traceabilityFrom`: Vorwärts-Verfolgbarkeit zu Implementierungen
+- `version`: Versionsnummer (z.B. "1.0")
+- `embedding`: Vektor für semantische Suche (768 Dimensionen)
+- `createdAt`: Zeitstempel Erstellung
+- `updatedAt`: Zeitstempel letzte Änderung
+
+### Relations (IREB-Graph)
+
+**HAS_REQUIREMENT**: `SoftwareApplication → SoftwareRequirement`
+- Verbindet Anwendungen mit ihren Requirements
+
+**DEPENDS_ON**: `SoftwareRequirement → SoftwareRequirement`
+- Ein Requirement hängt von einem anderen ab
+- Properties: `type` (technical/functional/logical), `strength` (mandatory/optional)
+
+**CONFLICTS_WITH**: `SoftwareRequirement → SoftwareRequirement`
+- Ein Requirement steht im Konflikt mit einem anderen
+- Properties: `severity` (high/medium/low), `resolved` (boolean), `reason`
+
+**EXTENDS**: `SoftwareRequirement → SoftwareRequirement`
+- Ein Requirement erweitert ein anderes
+- Properties: `extensionType` (optional/alternative/enhancement)
+
+**RELATED_TO**: `SoftwareRequirement → SoftwareRequirement`
+- Generische Beziehung für alle anderen Verbindungen
+
+### Graph-Queries (Beispiele)
+
+**Dependency-Chain finden:**
+```cypher
+MATCH path = (r:SoftwareRequirement {identifier: 'FR-001'})-[:DEPENDS_ON*]->(dep)
+RETURN path
+```
+
+**Konflikte identifizieren:**
+```cypher
+MATCH (r1:SoftwareRequirement)-[c:CONFLICTS_WITH {resolved: false}]->(r2)
+RETURN r1.identifier, r2.identifier, c.severity, c.reason
+ORDER BY c.severity DESC
+```
+
+**Kritische Requirements ohne Verifizierung:**
+```cypher
+MATCH (r:SoftwareRequirement {priority: 'must', status: 'approved'})
+WHERE r.verificationMethod IS NULL
+RETURN r.identifier, r.name
+```
+
+**Risk-Level Übersicht:**
+```cypher
+MATCH (r:SoftwareRequirement)
+WHERE r.riskLevel <> 'none'
+RETURN r.riskLevel, count(r) as count, collect(r.identifier) as requirements
+ORDER BY count DESC
+```
+
+---
+
+## 💡 **Best Practices**
+
+### **1. Project Name Consistency**
+
+**WICHTIG:** Der `projectName` wird für UPSERT-Logik verwendet. Verwende für ein Projekt **immer den gleichen Namen**, um Duplikate zu vermeiden:
+
+✅ **Richtig:**
+```bash
+# Erste Extraktion
+curl -X POST /api/requirements/extract -d '{"projectName": "BikeShop", ...}'
+
+# Spätere Extraktionen (gleicher Name!)
+curl -X POST /api/requirements/extract -d '{"projectName": "BikeShop", ...}'
+```
+
+❌ **Falsch:**
+```bash
+curl -X POST /api/requirements/extract -d '{"projectName": "BikeShop", ...}'
+curl -X POST /api/requirements/extract -d '{"projectName": "Bike Shop", ...}'  # Anderer Name → neue Application!
+```
+
+**Hinweis:** Namen werden case-insensitive gematcht ("BikeShop" = "bikeshop" = "BIKESHOP").
+
+---
+
+### **2. Große Dokumente & LLM Limits**
+
+Bei sehr großen Dokumenten (50+ Requirements) kann es sein, dass nicht alle Requirements in einem Durchlauf extrahiert werden:
+
+**Symptome:**
+- Log zeigt `requirements_count: 0` oder sehr wenige Requirements
+- Warnung: "LLM response may be truncated"
+
+**Lösung:**
+1. **Größeres Modell verwenden** (mehr Token-Kapazität):
+   ```bash
+   docker exec raginald_ollama ollama pull llama3:70b  # Größeres Modell
+   ```
+2. **Dokument aufteilen**: Splitte große Dokumente in kleinere Kapitel
+3. **Mehrfach extrahieren**: Führe die Extraktion mehrmals aus (UPSERT verhindert Duplikate)
+
+**Konfiguration:**
+```env
+# Höheres Token-Limit (aber modell-abhängig!)
+# Standard: 32768 Tokens für Response
+```
+
+---
+
+### **3. Halluzination vermeiden**
+
+Der LLM wurde instruiert, **NUR** Requirements zu extrahieren, die im Dokument stehen:
+
+✅ **Gut**: Dokument enthält 8 Requirements → LLM extrahiert 8
+❌ **Halluzination**: Dokument enthält 8 Requirements → LLM extrahiert 20 (erfundene)
+
+**Aktueller Schutz:**
+- Prompt betont: "ONLY extract EXPLICITLY stated requirements"
+- Keine Annahmen über typische/übliche Requirements
+- Strikte Bindung an Dokumenteninhalt
+
+**Wenn Halluzination auftritt:**
+- Prüfe Log: `LLM generation completed` → Vergleiche `document_length` mit `response_length`
+- Senke `temperature` Parameter (0.1-0.3 statt 0.7)
+- Verwende spezifischeren Prompt oder kleineres, präziseres Modell
 
 ---
 
@@ -446,9 +596,8 @@ php bin/console messenger:failed:show
 # Worker manuell starten
 php bin/console messenger:consume async -vv
 
-# Redis Queue löschen (bei Problemen)
-redis-cli DEL raginald_async
-redis-cli DEL raginald_failed
+# Redis Queue Cleanup (bei Problemen mit Consumer Groups)
+php bin/console app:messenger:cleanup
 ```
 
 ### **Neo4j Connection Failed**
@@ -472,7 +621,7 @@ open http://localhost:7474
 - **Framework**: Symfony 7.2 LTS
 - **API**: API Platform 4.0
 - **LLM**: Ollama (llama3.2, nomic-embed-text)
-- **Format**: TOON-PHP v2.0 (Token-Optimierung)
+- **Format**: JSON (Strukturierte LLM-Kommunikation)
 - **Graph DB**: Neo4j 5.15
 - **Cache/Queue**: Redis (Refresh Tokens + Message Queue)
 
@@ -498,7 +647,7 @@ Das System folgt **Symfony Best Practices**, **API Platform Patterns**, und **Sc
 2. **State Processors/Providers** (API Platform)
 3. **Message Handlers** für Async Logic
 4. **DTO-basierte Validierung**
-5. **TOON Format** für LLM-Kommunikation
+5. **JSON Format** für LLM-Kommunikation
 
 ---
 
@@ -516,5 +665,5 @@ Das System folgt **Symfony Best Practices**, **API Platform Patterns**, und **Sc
 
 **Eine vollständig optimierte, production-ready RAG-Pipeline für Software Requirements Extraction! 🚀**
 
-*Entwickelt mit Symfony 7.2 LTS, API Platform 4.0, TOON Format, und Schema.org Standards.*
+*Entwickelt mit Symfony 7.2 LTS, API Platform 4.0, und Schema.org Standards.*
 

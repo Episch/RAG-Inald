@@ -72,12 +72,23 @@ class DocumentExtractionRouter
         );
 
         if (empty($compatibleParsers)) {
+            $this->logger->error('No compatible parser found', [
+                'mime_type' => $mimeType,
+                'available_parsers' => array_map(fn($p) => [
+                    'name' => $p->getName(),
+                    'priority' => $p->getPriority(),
+                ], $this->parsers),
+            ]);
+            
             throw new \RuntimeException("No parser available for MIME type: {$mimeType}");
         }
 
-        $this->logger->debug('Compatible parsers found', [
+        $this->logger->info('Compatible parsers found', [
             'count' => count($compatibleParsers),
-            'parsers' => array_map(fn($p) => $p->getName(), $compatibleParsers),
+            'parsers' => array_map(fn($p) => [
+                'name' => $p->getName(),
+                'priority' => $p->getPriority(),
+            ], $compatibleParsers),
         ]);
 
         // Step 3: Try parsers in priority order

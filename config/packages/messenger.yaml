@@ -3,24 +3,30 @@ framework:
         failure_transport: failed
 
         transports:
-            # Asynchronous transport using Redis (shared with JWT refresh tokens)
-            # Fast, persistent message queue using Redis Streams
+            # Asynchronous transport using Redis Streams
+            # Each transport uses a unique stream name to avoid conflicts
             async:
-                dsn: 'redis://localhost:6379/messages/async'
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
                     stream: 'raginald_async'
-                    group: 'raginald_workers'
-                    consumer: 'consumer_1'
-                    delete_after_ack: true
+                    group: 'raginald_async_group'
+                    consumer: 'raginald_consumer_1'
+                    # Disabled to allow multiple consumer groups
+                    delete_after_ack: false
+                    delete_after_reject: false
+                    # Auto-create stream if not exists
+                    auto_setup: true
             
             # Failed messages transport
             failed:
-                dsn: 'redis://localhost:6379/messages/failed'
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
                     stream: 'raginald_failed'
-                    group: 'raginald_workers'
-                    consumer: 'consumer_1'
+                    group: 'raginald_failed_group'
+                    consumer: 'raginald_failed_consumer_1'
                     delete_after_ack: false
+                    delete_after_reject: false
+                    auto_setup: true
             
             # Synchronous transport
             sync: 'sync://'

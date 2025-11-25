@@ -69,7 +69,7 @@ class SoftwareApplication
     }
 
     /**
-     * Convert to array for TOON encoding
+     * Convert to array for JSON encoding
      */
     public function toArray(): array
     {

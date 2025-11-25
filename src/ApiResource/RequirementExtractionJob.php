@@ -65,9 +65,6 @@ class RequirementExtractionJob
     public ?string $extractedText = null;
 
     #[ApiProperty(writable: false)]
-    public ?string $toonOutput = null;
-
-    #[ApiProperty(writable: false)]
     public ?SoftwareApplication $result = null;
 
     #[ApiProperty(writable: false)]
