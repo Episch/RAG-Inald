@@ -156,6 +156,7 @@ RATE_LIMIT_ENABLED=false
 | | `/api/token/revoke-all` | POST | ✅ Admin | Alle Tokens widerrufen |
 | **Requirements** | `/api/requirements/extract` | POST | ✅ | Dokument extrahieren |
 | | `/api/requirements/search` | POST | ✅ | Semantische Suche |
+| | `/api/requirements/import-status` | GET | ✅ | **Import-Status Übersicht** |
 | | `/api/requirements/jobs` | GET | ✅ | Jobs auflisten |
 | | `/api/requirements/jobs/{id}` | GET | ✅ | Job-Status abrufen |
 | **System** | `/api/health` | GET | ❌ | Health Check |
@@ -216,6 +217,30 @@ curl -X POST https://localhost:8000/api/requirements/extract \
 # Job-Status prüfen
 curl -X GET https://localhost:8000/api/requirements/jobs/{id} \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Import-Status Übersicht abrufen (Dashboard)
+curl -X GET https://localhost:8000/api/requirements/import-status \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Response:
+{
+  "totalJobs": 42,
+  "activeJobs": 2,
+  "completedJobs": 35,
+  "failedJobs": 5,
+  "totalRequirementsExtracted": 1247,
+  "latestJob": { /* neuester Job */ },
+  "jobs": [ /* alle Jobs */ ],
+  "projectStats": [
+    {
+      "projectName": "E-Commerce Platform",
+      "jobCount": 3,
+      "totalRequirements": 156,
+      "lastImport": "2025-11-24T20:59:16+00:00"
+    }
+  ],
+  "recentFailures": [ /* letzte 5 Fehler */ ]
+}
 ```
 
 ### **3. Semantic Search**
@@ -523,26 +548,52 @@ curl -X POST /api/requirements/extract -d '{"projectName": "Bike Shop", ...}'  #
 
 ---
 
-### **2. Große Dokumente & LLM Limits**
+### **2. Große Dokumente & Automatisches Chunking** ✨
 
-Bei sehr großen Dokumenten (50+ Requirements) kann es sein, dass nicht alle Requirements in einem Durchlauf extrahiert werden:
+Das System unterstützt **automatisches Chunking** für große Dokumente (z.B. Excel-Dateien mit 50+ Requirements):
 
-**Symptome:**
-- Log zeigt `requirements_count: 0` oder sehr wenige Requirements
-- Warnung: "LLM response may be truncated"
+**🚀 Wie es funktioniert:**
 
-**Lösung:**
-1. **Größeres Modell verwenden** (mehr Token-Kapazität):
-   ```bash
-   docker exec raginald_ollama ollama pull llama3:70b  # Größeres Modell
-   ```
-2. **Dokument aufteilen**: Splitte große Dokumente in kleinere Kapitel
-3. **Mehrfach extrahieren**: Führe die Extraktion mehrmals aus (UPSERT verhindert Duplikate)
+1. **Automatische Erkennung**: Dokumente über ~8000 Zeichen werden automatisch in Chunks aufgeteilt
+2. **Intelligentes Schneiden**: Chunks werden bei natürlichen Breakpoints geschnitten (Absätze, Sätze)
+3. **Overlap für Kontext**: 500 Zeichen Overlap zwischen Chunks für besseren Kontext
+4. **Parallele Verarbeitung**: Jeder Chunk wird separat an den LLM geschickt
+5. **Automatisches Mergen**: Alle extrahierten Requirements werden zusammengeführt
 
-**Konfiguration:**
-```env
-# Höheres Token-Limit (aber modell-abhängig!)
-# Standard: 32768 Tokens für Response
+**📊 Beispiel:**
+
+```
+Dokument: 587 Zeilen Excel (example_Use_Cases_konsolidiert.xlsx)
+├── Chunk 1: ~8000 Zeichen → 15 Requirements
+├── Chunk 2: ~8000 Zeichen → 18 Requirements  
+├── Chunk 3: ~8000 Zeichen → 12 Requirements
+└── Ergebnis: 45 Requirements (vollständig!)
+```
+
+**✅ Vorteile:**
+- **Keine Token-Limits**: Dokumente beliebiger Größe verarbeitbar
+- **Vollständige Extraktion**: Alle Requirements werden erfasst (nicht nur die ersten ~15)
+- **Automatisch**: Kein manuelles Aufteilen nötig
+- **Robust**: Funktioniert auch mit kleineren LLM-Modellen
+
+**⚙️ Konfiguration:**
+
+Das Chunking ist standardmäßig aktiviert und benötigt keine Konfiguration. Die Parameter können in `DocumentChunkerService.php` angepasst werden:
+
+```php
+// Standard-Einstellungen
+MAX_CHARS_PER_CHUNK = 8000  // ~2000 Tokens
+OVERLAP_CHARS = 500          // Kontext zwischen Chunks
+```
+
+**💡 Tipp:** Bei extrem großen Dokumenten (100+ Requirements) wird empfohlen, den Log zu überprüfen:
+
+```bash
+# Log zeigt Chunk-Verarbeitung
+[info] Chunking large document (text_length: 45000, chunks: 6)
+[info] Processing chunk 1/6 (chunk_length: 8000)
+[info] Chunk 1 processed successfully (requirements_extracted: 12)
+...
 ```
 
 ---

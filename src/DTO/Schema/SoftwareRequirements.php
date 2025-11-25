@@ -398,7 +398,13 @@ class SoftwareRequirements
 
         // Classification
         $requirement->category = $data['category'] ?? null;
-        $requirement->tags = $data['tags'] ?? [];
+        // Normalisiere tags: LLM gibt manchmal String statt Array
+        $tags = $data['tags'] ?? [];
+        if (is_string($tags)) {
+            // Wenn tags ein String ist, entweder leeres Array oder als Array mit einem Element
+            $tags = empty($tags) || $tags === '' ? [] : [$tags];
+        }
+        $requirement->tags = is_array($tags) ? $tags : [];
         
         // IREB: Rationale
         $requirement->rationale = $data['rationale'] ?? null;
@@ -409,7 +415,8 @@ class SoftwareRequirements
         // IREB: Stakeholder
         $requirement->stakeholder = $data['stakeholder'] ?? null;
         $requirement->author = $data['author'] ?? null;
-        $requirement->involvedStakeholders = $data['involvedStakeholders'] ?? [];
+        $involvedStakeholders = $data['involvedStakeholders'] ?? [];
+        $requirement->involvedStakeholders = is_array($involvedStakeholders) ? $involvedStakeholders : [];
         
         // IREB: Verification
         $requirement->acceptanceCriteria = $data['acceptanceCriteria'] ?? null;
@@ -418,13 +425,18 @@ class SoftwareRequirements
         
         // IREB: Context
         $requirement->source = $data['source'] ?? null;
-        $requirement->constraints = $data['constraints'] ?? [];
-        $requirement->assumptions = $data['assumptions'] ?? [];
-        $requirement->relatedRequirements = $data['relatedRequirements'] ?? [];
-        $requirement->dependencies = $data['dependencies'] ?? [];
+        $constraints = $data['constraints'] ?? [];
+        $requirement->constraints = is_array($constraints) ? $constraints : [];
+        $assumptions = $data['assumptions'] ?? [];
+        $requirement->assumptions = is_array($assumptions) ? $assumptions : [];
+        $relatedRequirements = $data['relatedRequirements'] ?? [];
+        $requirement->relatedRequirements = is_array($relatedRequirements) ? $relatedRequirements : [];
+        $dependencies = $data['dependencies'] ?? [];
+        $requirement->dependencies = is_array($dependencies) ? $dependencies : [];
         
         // IREB: Risk
-        $requirement->risks = $data['risks'] ?? [];
+        $risks = $data['risks'] ?? [];
+        $requirement->risks = is_array($risks) ? $risks : [];
         $requirement->riskLevel = $data['riskLevel'] ?? 'none';
         
         // IREB: Effort

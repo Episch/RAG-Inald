@@ -23,8 +23,8 @@ class OllamaLLMService
         private readonly LoggerInterface $logger
     ) {
         $this->client = HttpClient::create([
-            'timeout' => 120,
-            'max_duration' => 300,
+            'timeout' => 180,       // 3 minutes for LLM response
+            'max_duration' => 600,  // 10 minutes max total duration
         ]);
     }
 

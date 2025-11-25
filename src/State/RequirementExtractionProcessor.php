@@ -251,15 +251,6 @@ class RequirementExtractionProcessor implements ProcessorInterface
     }
 
     /**
-     * Get the latest (most recent) job
-     */
-    public static function getLatestJob(): ?RequirementExtractionJob
-    {
-        $jobs = self::getAllJobs();
-        return $jobs[0] ?? null;
-    }
-
-    /**
      * Update job status (called from message handler)
      */
     public static function updateJobStatus(string $jobId, string $status, array $data = []): void

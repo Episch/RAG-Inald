@@ -26,6 +26,7 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
 
         $this->addSearchEndpoint($openApi);
         $this->customizeExtractEndpoint($openApi);
+        $this->addImportStatusEndpoint($openApi);
         $this->setRequirementsTagsForAllPaths($openApi);
 
         return $openApi;
@@ -38,7 +39,8 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
             '/api/requirements/extract',
             '/api/requirements/jobs',
             '/api/requirements/jobs/{id}',
-            '/api/requirements/search'
+            '/api/requirements/search',
+            '/api/requirements/import-status'
         ];
 
         foreach ($requirementsPaths as $path) {
@@ -417,7 +419,7 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                             'summary' => 'Option 3: Server Path (Admin)',
                             'description' => 'Use a file already present on the server - only for backend/admin use',
                             'value' => [
-                                'projectName' => 'Internal Tool Suite',
+                                'projectName' => 'BC NOVA',
                                 'serverPath' => '/home/david/projects/raginald/public/shared/example_Use_Cases_konsolidiert.xlsx',
                                 'llmModel' => 'llama3.2',
                                 'temperature' => 0.5,
@@ -438,6 +440,45 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
 
         $pathItem = $pathItem->withPost($newOperation);
         $openApi->getPaths()->addPath('/api/requirements/extract', $pathItem);
+    }
+
+    private function addImportStatusEndpoint(OpenApi $openApi): void
+    {
+        $responses = [
+            '200' => [
+                'description' => 'Import Status Übersicht mit Statistiken und Job-Historie',
+                'content' => [
+                    'application/json' => [
+                        'schema' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'totalJobs' => ['type' => 'integer', 'example' => 42],
+                                'activeJobs' => ['type' => 'integer', 'example' => 2],
+                                'completedJobs' => ['type' => 'integer', 'example' => 35],
+                                'failedJobs' => ['type' => 'integer', 'example' => 5],
+                                'totalRequirementsExtracted' => ['type' => 'integer', 'example' => 1247],
+                                'latestJob' => ['type' => 'object', 'nullable' => true],
+                                'jobs' => ['type' => 'array', 'items' => ['type' => 'object']],
+                                'projectStats' => ['type' => 'array', 'items' => ['type' => 'object']],
+                                'recentFailures' => ['type' => 'array', 'items' => ['type' => 'object']],
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $operation = new Operation(
+            operationId: 'getImportStatus',
+            tags: ['Requirements'],
+            summary: 'Import Status Übersicht (DEPRECATED)',
+            description: '⚠️ **DEPRECATED:** Dieser Endpunkt wird in einer zukünftigen Version entfernt. Verwenden Sie stattdessen persistente Job-Speicherung (Doctrine/Redis).\n\nZeigt eine Übersicht über alle Import-Jobs mit Statistiken: aktive Jobs, abgeschlossene Jobs, fehlgeschlagene Jobs, Anzahl extrahierter Requirements, Projekt-Statistiken und Historie.\n\n**Problem:** Jobs werden nur in-memory gespeichert und gehen bei jedem Server-Neustart verloren.',
+            responses: $responses,
+            deprecated: true
+        );
+
+        $pathItem = new PathItem(get: $operation);
+        $openApi->getPaths()->addPath('/api/requirements/import-status', $pathItem);
     }
 }
 

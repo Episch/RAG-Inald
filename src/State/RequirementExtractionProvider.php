@@ -22,12 +22,6 @@ class RequirementExtractionProvider implements ProviderInterface
             return $job ? RequirementExtractionJobOutput::fromJob($job) : null;
         }
 
-        // Get latest job (newest first)
-        if (str_ends_with($operation->getUriTemplate() ?? '', '/latest')) {
-            $latestJob = RequirementExtractionProcessor::getLatestJob();
-            return $latestJob ? RequirementExtractionJobOutput::fromJob($latestJob) : null;
-        }
-
         // Get all jobs (sorted by creation date, newest first)
         $jobs = RequirementExtractionProcessor::getAllJobs();
         return array_map(

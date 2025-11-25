@@ -178,8 +178,9 @@ class ExtractRequirementsHandler
         
         foreach ($chunks as $index => $chunk) {
             $chunkNumber = $index + 1;
+            $totalChunksCount = count($chunks);
             
-            $this->logger->info("Processing chunk {$chunkNumber}/{count($chunks)}", [
+            $this->logger->info("Processing chunk {$chunkNumber}/{$totalChunksCount}", [
                 'chunk_number' => $chunkNumber,
                 'chunk_length' => strlen($chunk),
             ]);
@@ -280,7 +281,7 @@ EXTRACTION RULES:
 6. Keep names SHORT (max 5-8 words)
 7. Always respond with valid JSON wrapped in ```json code blocks
 
-OUTPUT FORMAT (IREB-enhanced):
+OUTPUT FORMAT (IREB-enhanced with Risk Management & Stakeholders):
 
 ```json
 {
@@ -295,23 +296,79 @@ OUTPUT FORMAT (IREB-enhanced):
       "tags": ["authentication", "login", "security"],
       "rationale": "Users need secure access to protect personal data and comply with GDPR regulations.",
       "acceptanceCriteria": "Given a user on the login page, when valid credentials are entered, then access to the dashboard is granted within 2 seconds.",
-      "source": "document"
+      "source": "document",
+      "author": "Max Mustermann",
+      "involvedStakeholders": ["Security Team", "UX Designer", "Product Owner"],
+      "risks": [
+        {
+          "description": "Password brute-force attacks could compromise user accounts",
+          "severity": "high",
+          "probability": "medium",
+          "impact": "Account takeover and data breach",
+          "mitigation": "Implement rate limiting and account lockout after failed attempts"
+        }
+      ],
+      "constraints": [
+        {
+          "description": "Must comply with GDPR password storage requirements",
+          "type": "legal"
+        },
+        {
+          "description": "Authentication must complete within 2 seconds",
+          "type": "performance"
+        }
+      ],
+      "assumptions": [
+        {
+          "description": "Users have access to their email for password reset",
+          "validated": true
+        }
+      ],
+      "relatedRequirements": ["FR-002", "SEC-001"],
+      "dependencies": {
+        "dependsOn": ["FR-005"],
+        "conflicts": [],
+        "extends": []
+      }
     }
   ]
 }
 ```
 
-FIELD RULES (IREB-standard):
+FIELD RULES (IREB-standard with Risk & Stakeholder Management):
 - identifier: FR-XXX (functional), SEC-XXX (security), PERF-XXX (performance), BUS-XXX (business), UX-XXX (usability), NFR-XXX (non-functional)
 - name: Short, clear title (max 8 words) - NO prefixes!
 - description: "The system shall..." + specific details
 - requirementType: functional | security | performance | business | usability | non-functional
 - priority: must | should | could | wont (MoSCoW method)
 - category: NEVER empty! (e.g., "User Management", "Data Security", "Performance")
-- tags: 2-4 lowercase keywords
+- tags: 2-4 lowercase keywords array
 - rationale: WHY does this requirement exist? What problem does it solve?
 - acceptanceCriteria: HOW to verify? (Given-When-Then format if possible)
-- source: "document" (always this value for extracted requirements)
+- source: "document" (always this value)
+- author: Name of the person who authored/documented this requirement (string) - extract from document if mentioned, otherwise leave empty
+- involvedStakeholders: Array of stakeholder names mentioned in the document (e.g., ["Product Owner", "UX Team"]) - empty array if not mentioned
+- risks: Array of risk objects with:
+  * description: What could go wrong?
+  * severity: low | medium | high | critical
+  * probability: optional estimate (low/medium/high)
+  * impact: optional description of consequences
+  * mitigation: optional mitigation strategy
+  Extract ONLY if risks are mentioned in the document - otherwise empty array []
+- constraints: Array of constraint objects with:
+  * description: The constraint description
+  * type: technical | legal | budget | time | resource | business
+  Extract ONLY if constraints are mentioned - otherwise empty array []
+- assumptions: Array of assumption objects with:
+  * description: The assumption made
+  * validated: boolean (true if document confirms it's validated, false otherwise)
+  Extract ONLY if assumptions are mentioned - otherwise empty array []
+- relatedRequirements: Array of requirement identifiers that are thematically related (e.g., ["FR-002", "SEC-001"]) - empty array if none mentioned
+- dependencies: Object with three arrays:
+  * dependsOn: Requirements that this one depends on (must exist first)
+  * conflicts: Requirements that contradict this one
+  * extends: Requirements that this one enhances/extends
+  Extract ONLY if dependencies are explicitly mentioned - otherwise use empty arrays
 
 EXTRACTION INSTRUCTIONS:
 1. Read the ENTIRE document carefully
@@ -320,6 +377,12 @@ EXTRACTION INSTRUCTIONS:
 4. Translate to English if needed
 5. Fill ALL fields (especially category - never leave empty)
 6. Use sequential identifiers (FR-001, FR-002, ... FR-N)
+7. ⚠️ CRITICAL for risks/constraints/assumptions/stakeholders:
+   - Extract ONLY if EXPLICITLY mentioned in the document
+   - DO NOT invent risks/constraints/assumptions
+   - Use empty arrays [] if not mentioned
+   - For stakeholders: extract names only if mentioned (e.g., "Stakeholder: Product Team")
+8. For relatedRequirements: Only link requirements if explicitly stated (e.g., "depends on FR-001")
 
 Now extract ALL requirements from the document text.
 PROMPT;
@@ -410,26 +473,23 @@ PROMPT;
     private function validateAndCleanRequirements(array $requirements): array
     {
         $cleaned = [];
-        $seenNames = [];
-        $seenDescriptions = [];
+        $seenIdentifiers = []; // Only check identifier duplicates (unique IDs)
 
         foreach ($requirements as $req) {
-            // Skip if name or description is duplicate (fuzzy match)
-            $nameLower = strtolower(trim($req['name'] ?? ''));
-            $descLower = strtolower(trim($req['description'] ?? ''));
+            // Only skip if IDENTIFIER is truly duplicate (not name/description!)
+            $identifier = trim($req['identifier'] ?? '');
             
-            // Check for exact duplicates
-            if (in_array($nameLower, $seenNames, true)) {
-                $this->logger->debug('Skipping duplicate requirement (by name)', [
+            if (empty($identifier)) {
+                $this->logger->debug('Skipping requirement without identifier', [
                     'name' => $req['name'] ?? 'unknown',
                 ]);
                 continue;
             }
             
-            // Check for similar descriptions (first 100 chars)
-            $descPreview = substr($descLower, 0, 100);
-            if (in_array($descPreview, $seenDescriptions, true)) {
-                $this->logger->debug('Skipping duplicate requirement (by description)', [
+            // Check for identifier duplicates only
+            if (in_array($identifier, $seenIdentifiers, true)) {
+                $this->logger->debug('Skipping duplicate requirement (by identifier)', [
+                    'identifier' => $identifier,
                     'name' => $req['name'] ?? 'unknown',
                 ]);
                 continue;
@@ -439,18 +499,17 @@ PROMPT;
             if (empty($req['category'])) {
                 $req['category'] = $this->inferCategory($req);
                 $this->logger->debug('Auto-filled empty category', [
-                    'requirement' => $req['identifier'] ?? 'unknown',
+                    'requirement' => $identifier,
                     'category' => $req['category'],
                 ]);
             }
             
             // Validate identifier format (should match type prefix)
-            if (isset($req['identifier'], $req['requirementType'])) {
-                $req['identifier'] = $this->normalizeIdentifier($req['identifier'], $req['requirementType']);
+            if (isset($req['requirementType'])) {
+                $req['identifier'] = $this->normalizeIdentifier($identifier, $req['requirementType']);
             }
             
-            $seenNames[] = $nameLower;
-            $seenDescriptions[] = $descPreview;
+            $seenIdentifiers[] = $identifier;
             $cleaned[] = $req;
         }
 

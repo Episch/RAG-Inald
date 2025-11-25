@@ -14,8 +14,8 @@ use Psr\Log\LoggerInterface;
  */
 class DocumentChunkerService
 {
-    private const MAX_CHARS_PER_CHUNK = 8000;  // ~2000 Tokens bei ca. 4 chars/token
-    private const OVERLAP_CHARS = 500;          // Overlap zwischen Chunks für Kontext
+    private const MAX_CHARS_PER_CHUNK = 3500;  // ~875 Tokens (reduced for llama3.2 performance & timeout prevention)
+    private const OVERLAP_CHARS = 200;          // Overlap zwischen Chunks für Kontext
     
     public function __construct(
         private readonly LoggerInterface $logger
@@ -53,28 +53,36 @@ class DocumentChunkerService
         $chunkIndex = 0;
 
         while ($position < $textLength) {
-            $chunkSize = min(self::MAX_CHARS_PER_CHUNK, $textLength - $position);
+            // Stelle sicher, dass wir MINDESTENS die volle Chunk-Größe nehmen
+            $remainingText = $textLength - $position;
+            $chunkSize = min(self::MAX_CHARS_PER_CHUNK, $remainingText);
             $chunk = substr($text, $position, $chunkSize);
             
-            // Versuche bei Absatzende zu schneiden für besseren Kontext
-            if ($position + $chunkSize < $textLength) {
-                $chunk = $this->cutAtNaturalBreakpoint($chunk);
+            // Nur bei Absatzende schneiden wenn wir NICHT am Ende sind UND der Chunk groß genug ist
+            if ($remainingText > self::MAX_CHARS_PER_CHUNK) {
+                $cutChunk = $this->cutAtNaturalBreakpoint($chunk);
+                // Nur verwenden wenn mindestens 70% der Chunk-Größe erhalten bleibt
+                if (strlen($cutChunk) >= self::MAX_CHARS_PER_CHUNK * 0.7) {
+                    $chunk = $cutChunk;
+                }
             }
             
             $chunks[] = $chunk;
+            $actualLength = strlen($chunk);
             
             $this->logger->debug('Created chunk', [
                 'chunk_index' => $chunkIndex,
-                'chunk_length' => strlen($chunk),
+                'chunk_length' => $actualLength,
                 'position' => $position,
             ]);
             
-            // Nächster Chunk startet mit Overlap für Kontext
-            $position += strlen($chunk) - self::OVERLAP_CHARS;
+            // Springe zur nächsten Position MINUS Overlap
+            // Stelle sicher, dass wir vorwärts gehen (mindestens 1000 Zeichen)
+            $position += max(1000, $actualLength - self::OVERLAP_CHARS);
             $chunkIndex++;
             
             // Sicherheitscheck gegen Endlosschleifen
-            if ($chunkIndex > 1000) {
+            if ($chunkIndex > 100) {
                 $this->logger->warning('Too many chunks, aborting', [
                     'chunk_count' => $chunkIndex,
                 ]);
@@ -85,7 +93,7 @@ class DocumentChunkerService
         $this->logger->info('Document chunking completed', [
             'total_chunks' => count($chunks),
             'original_length' => $textLength,
-            'avg_chunk_size' => $textLength > 0 ? round(array_sum(array_map('strlen', $chunks)) / count($chunks)) : 0,
+            'avg_chunk_size' => count($chunks) > 0 ? round(array_sum(array_map('strlen', $chunks)) / count($chunks)) : 0,
         ]);
 
         return $chunks;

@@ -20,23 +20,13 @@ use Symfony\Component\Validator\Constraints as Assert;
  */
 #[ApiResource(
     operations: [
-        new Get(
-            uriTemplate: '/requirements/jobs/{id}',
-            description: 'Get Requirements Extraction Job Status',
+        new Post(
+            uriTemplate: '/requirements/extract',
+            description: 'Extract software requirements from document and start processing job',
+            input: \App\DTO\Schema\RequirementExtractionInput::class,
             output: \App\DTO\Schema\RequirementExtractionJobOutput::class,
-            provider: RequirementExtractionProvider::class,
+            processor: RequirementExtractionProcessor::class,
             security: 'is_granted("ROLE_USER")'
-        ),
-        new Get(
-            uriTemplate: '/requirements/jobs/latest',
-            description: 'Get Latest (Most Recent) Requirements Extraction Job',
-            output: \App\DTO\Schema\RequirementExtractionJobOutput::class,
-            provider: RequirementExtractionProvider::class,
-            security: 'is_granted("ROLE_USER")',
-            openapiContext: [
-                'summary' => 'Get latest extraction job',
-                'description' => 'Returns the most recently created extraction job with its current status and results',
-            ]
         ),
         new GetCollection(
             uriTemplate: '/requirements/jobs',
@@ -45,12 +35,11 @@ use Symfony\Component\Validator\Constraints as Assert;
             provider: RequirementExtractionProvider::class,
             security: 'is_granted("ROLE_USER")'
         ),
-        new Post(
-            uriTemplate: '/requirements/extract',
-            description: 'Extract software requirements from document and start processing job',
-            input: \App\DTO\Schema\RequirementExtractionInput::class,
+        new Get(
+            uriTemplate: '/requirements/jobs/{id}',
+            description: 'Get Requirements Extraction Job Status',
             output: \App\DTO\Schema\RequirementExtractionJobOutput::class,
-            processor: RequirementExtractionProcessor::class,
+            provider: RequirementExtractionProvider::class,
             security: 'is_granted("ROLE_USER")'
         ),
     ],

@@ -135,6 +135,7 @@ class Neo4jConnectorService
 
     /**
      * Store individual requirement with embedding
+     * Uses proper graph modeling with Relations instead of arrays
      */
     public function storeRequirement(
         string $appNodeId,
@@ -142,6 +143,7 @@ class Neo4jConnectorService
         array $embedding = []
     ): string {
         try {
+            // Store core requirement node with version incrementing
             $result = $this->client->run(
                 'MATCH (app) WHERE elementId(app) = $appId
                 MERGE (req:SoftwareRequirement {identifier: $identifier})
@@ -158,15 +160,9 @@ class Neo4jConnectorService
                     req.verificationMethod = $verificationMethod,
                     req.validationCriteria = $validationCriteria,
                     req.status = $status,
-                    req.version = $version,
+                    req.version = "1.0",
                     req.stakeholder = $stakeholder,
                     req.author = $author,
-                    req.involvedStakeholders = $involvedStakeholders,
-                    req.constraints = $constraints,
-                    req.assumptions = $assumptions,
-                    req.relatedRequirements = $relatedRequirements,
-                    req.dependencies = $dependencies,
-                    req.risks = $risks,
                     req.riskLevel = $riskLevel,
                     req.estimatedEffort = $estimatedEffort,
                     req.actualEffort = $actualEffort,
@@ -187,15 +183,9 @@ class Neo4jConnectorService
                     req.verificationMethod = $verificationMethod,
                     req.validationCriteria = $validationCriteria,
                     req.status = $status,
-                    req.version = $version,
+                    req.version = CASE WHEN req.version IS NULL THEN "1.0" ELSE toString(toFloat(req.version) + 0.1) END,
                     req.stakeholder = $stakeholder,
                     req.author = $author,
-                    req.involvedStakeholders = $involvedStakeholders,
-                    req.constraints = $constraints,
-                    req.assumptions = $assumptions,
-                    req.relatedRequirements = $relatedRequirements,
-                    req.dependencies = $dependencies,
-                    req.risks = $risks,
                     req.riskLevel = $riskLevel,
                     req.estimatedEffort = $estimatedEffort,
                     req.actualEffort = $actualEffort,
@@ -204,7 +194,7 @@ class Neo4jConnectorService
                     req.embedding = $embedding,
                     req.updatedAt = datetime()
                 MERGE (app)-[:HAS_REQUIREMENT]->(req)
-                RETURN elementId(req) as id',
+                RETURN elementId(req) as id, req.version as version',
                 [
                     'appId' => $appNodeId,
                     'identifier' => $requirement->identifier,
@@ -220,15 +210,8 @@ class Neo4jConnectorService
                     'verificationMethod' => $requirement->verificationMethod,
                     'validationCriteria' => $requirement->validationCriteria,
                     'status' => $requirement->status,
-                    'version' => $requirement->version ?? '1.0',
                     'stakeholder' => $requirement->stakeholder,
                     'author' => $requirement->author,
-                    'involvedStakeholders' => $requirement->involvedStakeholders,
-                    'constraints' => $requirement->constraints,
-                    'assumptions' => $requirement->assumptions,
-                    'relatedRequirements' => $requirement->relatedRequirements,
-                    'dependencies' => $requirement->dependencies,
-                    'risks' => $requirement->risks,
                     'riskLevel' => $requirement->riskLevel,
                     'estimatedEffort' => $requirement->estimatedEffort,
                     'actualEffort' => $requirement->actualEffort,
@@ -238,11 +221,26 @@ class Neo4jConnectorService
                 ]
             );
 
-            $nodeId = $result->first()->get('id');
+            $record = $result->first();
+            $nodeId = $record->get('id');
+            $version = $record->get('version');
+            
+            // Create RISK nodes with HAS_RISK relation
+            $this->createRiskNodes($nodeId, $requirement->risks);
+            
+            // Create PERSON nodes for stakeholders with STAKEHOLDER relation
+            $this->createStakeholderNodes($nodeId, $requirement->involvedStakeholders, $requirement->author);
+            
+            // Create CONSTRAINT nodes with HAS_CONSTRAINT relation
+            $this->createConstraintNodes($nodeId, $requirement->constraints);
+            
+            // Create ASSUMPTION nodes with HAS_ASSUMPTION relation
+            $this->createAssumptionNodes($nodeId, $requirement->assumptions);
             
             $this->logger->debug('Requirement stored/updated', [
                 'identifier' => $requirement->identifier,
                 'node_id' => $nodeId,
+                'version' => $version,
             ]);
             
             return $nodeId;
@@ -253,6 +251,237 @@ class Neo4jConnectorService
             ]);
 
             throw new \RuntimeException("Failed to store requirement: {$e->getMessage()}", 0, $e);
+        }
+    }
+    
+    /**
+     * Create RISK nodes with HAS_RISK relation
+     * Uses MERGE to avoid duplicates across requirements
+     */
+    private function createRiskNodes(string $reqNodeId, array $risks): void
+    {
+        if (empty($risks)) {
+            return;
+        }
+        
+        try {
+            // Delete old risk relations (but keep Risk nodes - they might be shared)
+            $this->client->run(
+                'MATCH (req)-[r:HAS_RISK]->()
+                WHERE elementId(req) = $reqId
+                DELETE r',
+                ['reqId' => $reqNodeId]
+            );
+            
+            // MERGE risk nodes (shared across requirements if identical)
+            foreach ($risks as $riskData) {
+                if (is_string($riskData)) {
+                    $riskData = ['description' => $riskData, 'severity' => 'medium'];
+                }
+                
+                $description = trim($riskData['description'] ?? $riskData);
+                if (empty($description)) {
+                    continue;
+                }
+                
+                $this->client->run(
+                    'MATCH (req) WHERE elementId(req) = $reqId
+                    MERGE (risk:Risk {description: $description})
+                    ON CREATE SET
+                        risk.severity = $severity,
+                        risk.probability = $probability,
+                        risk.impact = $impact,
+                        risk.mitigation = $mitigation,
+                        risk.createdAt = datetime()
+                    ON MATCH SET
+                        risk.severity = $severity,
+                        risk.probability = $probability,
+                        risk.impact = $impact,
+                        risk.mitigation = $mitigation,
+                        risk.updatedAt = datetime()
+                    MERGE (req)-[:HAS_RISK {identifiedAt: datetime()}]->(risk)',
+                    [
+                        'reqId' => $reqNodeId,
+                        'description' => $description,
+                        'severity' => $riskData['severity'] ?? 'medium',
+                        'probability' => $riskData['probability'] ?? null,
+                        'impact' => $riskData['impact'] ?? null,
+                        'mitigation' => $riskData['mitigation'] ?? null,
+                    ]
+                );
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to create risk nodes', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+    
+    /**
+     * Create PERSON nodes with STAKEHOLDER relation
+     */
+    private function createStakeholderNodes(string $reqNodeId, array $stakeholders, ?string $author): void
+    {
+        $allStakeholders = $stakeholders;
+        if ($author && !in_array($author, $allStakeholders)) {
+            $allStakeholders[] = $author;
+        }
+        
+        if (empty($allStakeholders)) {
+            return;
+        }
+        
+        try {
+            // Delete old stakeholder relations (but keep Person nodes)
+            $this->client->run(
+                'MATCH (req)-[r:STAKEHOLDER]->()
+                WHERE elementId(req) = $reqId
+                DELETE r',
+                ['reqId' => $reqNodeId]
+            );
+            
+            // Create/update Person nodes and create relations
+            foreach ($allStakeholders as $stakeholderName) {
+                if (empty($stakeholderName)) {
+                    continue;
+                }
+                
+                $role = ($stakeholderName === $author) ? 'author' : 'stakeholder';
+                
+                $this->client->run(
+                    'MATCH (req) WHERE elementId(req) = $reqId
+                    MERGE (person:Person {name: $name})
+                    ON CREATE SET
+                        person.createdAt = datetime(),
+                        person.updatedAt = datetime()
+                    ON MATCH SET
+                        person.updatedAt = datetime()
+                    MERGE (req)-[r:STAKEHOLDER]->(person)
+                    ON CREATE SET
+                        r.role = $role,
+                        r.createdAt = datetime()
+                    ON MATCH SET
+                        r.role = $role,
+                        r.updatedAt = datetime()',
+                    [
+                        'reqId' => $reqNodeId,
+                        'name' => trim($stakeholderName),
+                        'role' => $role,
+                    ]
+                );
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to create stakeholder nodes', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+    
+    /**
+     * Create CONSTRAINT nodes with HAS_CONSTRAINT relation
+     * Uses MERGE to avoid duplicates across requirements
+     */
+    private function createConstraintNodes(string $reqNodeId, array $constraints): void
+    {
+        if (empty($constraints)) {
+            return;
+        }
+        
+        try {
+            // Delete old constraint relations (but keep Constraint nodes - they might be shared)
+            $this->client->run(
+                'MATCH (req)-[r:HAS_CONSTRAINT]->()
+                WHERE elementId(req) = $reqId
+                DELETE r',
+                ['reqId' => $reqNodeId]
+            );
+            
+            // MERGE constraint nodes (shared across requirements if identical)
+            foreach ($constraints as $constraintData) {
+                if (is_string($constraintData)) {
+                    $constraintData = ['description' => $constraintData, 'type' => 'general'];
+                }
+                
+                $description = trim($constraintData['description'] ?? $constraintData);
+                if (empty($description)) {
+                    continue;
+                }
+                
+                $this->client->run(
+                    'MATCH (req) WHERE elementId(req) = $reqId
+                    MERGE (c:Constraint {description: $description})
+                    ON CREATE SET
+                        c.type = $type,
+                        c.createdAt = datetime()
+                    ON MATCH SET
+                        c.type = $type,
+                        c.updatedAt = datetime()
+                    MERGE (req)-[:HAS_CONSTRAINT]->(c)',
+                    [
+                        'reqId' => $reqNodeId,
+                        'description' => $description,
+                        'type' => $constraintData['type'] ?? 'general',
+                    ]
+                );
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to create constraint nodes', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+    
+    /**
+     * Create ASSUMPTION nodes with HAS_ASSUMPTION relation
+     * Uses MERGE to avoid duplicates across requirements
+     */
+    private function createAssumptionNodes(string $reqNodeId, array $assumptions): void
+    {
+        if (empty($assumptions)) {
+            return;
+        }
+        
+        try {
+            // Delete old assumption relations (but keep Assumption nodes - they might be shared)
+            $this->client->run(
+                'MATCH (req)-[r:HAS_ASSUMPTION]->()
+                WHERE elementId(req) = $reqId
+                DELETE r',
+                ['reqId' => $reqNodeId]
+            );
+            
+            // MERGE assumption nodes (shared across requirements if identical)
+            foreach ($assumptions as $assumptionData) {
+                if (is_string($assumptionData)) {
+                    $assumptionData = ['description' => $assumptionData];
+                }
+                
+                $description = trim($assumptionData['description'] ?? $assumptionData);
+                if (empty($description)) {
+                    continue;
+                }
+                
+                $this->client->run(
+                    'MATCH (req) WHERE elementId(req) = $reqId
+                    MERGE (a:Assumption {description: $description})
+                    ON CREATE SET
+                        a.validated = $validated,
+                        a.createdAt = datetime()
+                    ON MATCH SET
+                        a.validated = $validated,
+                        a.updatedAt = datetime()
+                    MERGE (req)-[:HAS_ASSUMPTION]->(a)',
+                    [
+                        'reqId' => $reqNodeId,
+                        'description' => $description,
+                        'validated' => $assumptionData['validated'] ?? false,
+                    ]
+                );
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to create assumption nodes', [
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -292,7 +521,7 @@ class Neo4jConnectorService
                 $similarityResult = $this->client->run(
                     'MATCH (req:SoftwareRequirement)
                     WHERE req.embedding IS NOT NULL
-                    WITH req, gds.similarity.cosine(req.embedding, $embedding) AS similarity
+                    WITH req, vector.similarity.cosine(req.embedding, $embedding) AS similarity
                     WHERE similarity > 0.95
                     RETURN elementId(req) as id, req.identifier as identifier, similarity
                     ORDER BY similarity DESC
@@ -463,10 +692,11 @@ class Neo4jConnectorService
             $whereClause = implode(' AND ', $whereConditions);
 
             // HYBRID SEARCH: Combine semantic + keyword matching
+            // Using native vector.similarity.cosine (Neo4j 5.x+) instead of GDS plugin
             $query = "MATCH (req:SoftwareRequirement)
                 WHERE {$whereClause}
                 WITH req,
-                     gds.similarity.cosine(req.embedding, \$queryEmbedding) AS semantic_sim,
+                     vector.similarity.cosine(req.embedding, \$queryEmbedding) AS semantic_sim,
                      CASE
                          WHEN toLower(req.category) CONTAINS \$queryText THEN 0.3
                          WHEN toLower(req.name) CONTAINS \$queryText THEN 0.2
@@ -580,10 +810,18 @@ class Neo4jConnectorService
             // Note: nameKey index is created automatically by UNIQUE CONSTRAINT above
             $this->client->run('CREATE INDEX app_name IF NOT EXISTS FOR (a:SoftwareApplication) ON (a.name)');
             $this->client->run('CREATE INDEX app_version IF NOT EXISTS FOR (a:SoftwareApplication) ON (a.version)');
+            
+            // ============================================
+            // GRAPH MODEL: Stakeholder, Risk, Constraint, Assumption
+            // ============================================
+            $this->client->run('CREATE INDEX person_name IF NOT EXISTS FOR (p:Person) ON (p.name)');
+            $this->client->run('CREATE INDEX risk_severity IF NOT EXISTS FOR (r:Risk) ON (r.severity)');
+            $this->client->run('CREATE INDEX constraint_type IF NOT EXISTS FOR (c:Constraint) ON (c.type)');
 
             $this->logger->info('Neo4j IREB indexes and constraints created successfully', [
                 'constraints' => 2,  // identifier, nameKey
-                'indexes' => 10,     // Reduced because constraints create their own indexes
+                'indexes' => 13,     // Increased with new node types
+                'graph_nodes' => ['SoftwareRequirement', 'SoftwareApplication', 'Person', 'Risk', 'Constraint', 'Assumption'],
             ]);
         } catch (\Exception $e) {
             $this->logger->warning('Failed to create Neo4j indexes', [
