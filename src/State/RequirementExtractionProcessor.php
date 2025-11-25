@@ -234,11 +234,62 @@ class RequirementExtractionProcessor implements ProcessorInterface
     }
 
     /**
-     * Get all jobs (for GET collection)
+     * Get all jobs (for GET collection), sorted by creation date (newest first)
      */
     public static function getAllJobs(): array
     {
-        return array_values(self::$jobs);
+        $jobs = array_values(self::$jobs);
+        
+        // Sort by creation date (newest first)
+        usort($jobs, function($a, $b) {
+            $timeA = $a->createdAt?->getTimestamp() ?? 0;
+            $timeB = $b->createdAt?->getTimestamp() ?? 0;
+            return $timeB <=> $timeA; // Descending order
+        });
+        
+        return $jobs;
+    }
+
+    /**
+     * Get the latest (most recent) job
+     */
+    public static function getLatestJob(): ?RequirementExtractionJob
+    {
+        $jobs = self::getAllJobs();
+        return $jobs[0] ?? null;
+    }
+
+    /**
+     * Update job status (called from message handler)
+     */
+    public static function updateJobStatus(string $jobId, string $status, array $data = []): void
+    {
+        if (!isset(self::$jobs[$jobId])) {
+            return;
+        }
+
+        $job = self::$jobs[$jobId];
+        $job->status = $status;
+
+        if (isset($data['result'])) {
+            $job->result = $data['result'];
+        }
+
+        if (isset($data['neo4jNodeId'])) {
+            $job->neo4jNodeId = $data['neo4jNodeId'];
+        }
+
+        if (isset($data['metadata'])) {
+            $job->metadata = array_merge($job->metadata, $data['metadata']);
+        }
+
+        if (isset($data['errorMessage'])) {
+            $job->errorMessage = $data['errorMessage'];
+        }
+
+        if (in_array($status, ['completed', 'failed'])) {
+            $job->completedAt = new \DateTimeImmutable();
+        }
     }
 }
 

@@ -16,13 +16,19 @@ class RequirementExtractionProvider implements ProviderInterface
 {
     public function provide(Operation $operation, array $uriVariables = [], array $context = []): object|array|null
     {
-        // Get single job
+        // Get single job by ID
         if (isset($uriVariables['id'])) {
             $job = RequirementExtractionProcessor::getJob($uriVariables['id']);
             return $job ? RequirementExtractionJobOutput::fromJob($job) : null;
         }
 
-        // Get all jobs
+        // Get latest job (newest first)
+        if (str_ends_with($operation->getUriTemplate() ?? '', '/latest')) {
+            $latestJob = RequirementExtractionProcessor::getLatestJob();
+            return $latestJob ? RequirementExtractionJobOutput::fromJob($latestJob) : null;
+        }
+
+        // Get all jobs (sorted by creation date, newest first)
         $jobs = RequirementExtractionProcessor::getAllJobs();
         return array_map(
             fn($job) => RequirementExtractionJobOutput::fromJob($job),

@@ -9,8 +9,10 @@ use App\DTO\Schema\SoftwareRequirements;
 use App\Message\ExtractRequirementsMessage;
 use App\Service\DocumentExtractor\DocumentExtractionRouter;
 use App\Service\Embeddings\OllamaEmbeddingsService;
+use App\Service\LLM\DocumentChunkerService;
 use App\Service\LLM\OllamaLLMService;
 use App\Service\Neo4j\Neo4jConnectorService;
+use App\State\RequirementExtractionProcessor;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -30,6 +32,7 @@ class ExtractRequirementsHandler
     public function __construct(
         private readonly DocumentExtractionRouter $extractionRouter,
         private readonly OllamaLLMService $llmService,
+        private readonly DocumentChunkerService $chunkerService,
         private readonly OllamaEmbeddingsService $embeddingsService,
         private readonly Neo4jConnectorService $neo4jConnector,
         private readonly LoggerInterface $logger
@@ -107,6 +110,22 @@ class ExtractRequirementsHandler
                 ],
             ]);
 
+            // Update job status to completed
+            RequirementExtractionProcessor::updateJobStatus($message->jobId, 'completed', [
+                'result' => $application,
+                'neo4jNodeId' => $nodeId,
+                'metadata' => [
+                    'requirements_count' => count($requirements),
+                    'format' => $extractionResult['format'],
+                    'parser' => $extractionResult['parser'],
+                    'total_duration_seconds' => round($totalDuration, 3),
+                    'extraction_duration' => round($extractionDuration, 3),
+                    'llm_duration' => round($llmDuration, 3),
+                    'embeddings_duration' => round($embeddingsDuration, 3),
+                    'neo4j_duration' => round($neo4jDuration, 3),
+                ],
+            ]);
+
         } catch (\Exception $e) {
             $this->logger->error('Requirements extraction failed', [
                 'job_id' => $message->jobId,
@@ -114,44 +133,124 @@ class ExtractRequirementsHandler
                 'trace' => $e->getTraceAsString(),
             ]);
 
+            // Update job status to failed
+            RequirementExtractionProcessor::updateJobStatus($message->jobId, 'failed', [
+                'errorMessage' => $e->getMessage(),
+            ]);
+
             throw $e;
         }
     }
 
     /**
-     * Extract requirements using LLM with JSON format
+     * Extract requirements using LLM with JSON format and chunking for large documents
      * 
      * @return SoftwareRequirements[]
      */
     private function extractRequirementsWithLLM(string $documentText, string $projectName, array $options): array
     {
+        $documentLength = strlen($documentText);
+        
+        // Check if chunking is needed
+        $estimatedChunks = $this->chunkerService->estimateChunkCount($documentText);
+        
+        $this->logger->info('Starting LLM extraction', [
+            'document_length' => $documentLength,
+            'estimated_chunks' => $estimatedChunks,
+            'model' => $options['model'] ?? 'default',
+        ]);
+
+        // Chunk document for large files
+        $chunks = $this->chunkerService->chunkDocument($documentText);
+        
+        if (count($chunks) === 1) {
+            // Single chunk - process normally
+            return $this->extractRequirementsFromChunk($chunks[0], $projectName, $options, 1, 1);
+        }
+
+        // Multiple chunks - process each and merge results
+        $this->logger->info('Processing document in multiple chunks', [
+            'total_chunks' => count($chunks),
+            'document_length' => $documentLength,
+        ]);
+
+        $allRequirements = [];
+        
+        foreach ($chunks as $index => $chunk) {
+            $chunkNumber = $index + 1;
+            
+            $this->logger->info("Processing chunk {$chunkNumber}/{count($chunks)}", [
+                'chunk_number' => $chunkNumber,
+                'chunk_length' => strlen($chunk),
+            ]);
+
+            try {
+                $chunkRequirements = $this->extractRequirementsFromChunk(
+                    $chunk,
+                    $projectName,
+                    $options,
+                    $chunkNumber,
+                    count($chunks)
+                );
+
+                $this->logger->info("Chunk {$chunkNumber} processed successfully", [
+                    'requirements_extracted' => count($chunkRequirements),
+                ]);
+
+                $allRequirements = array_merge($allRequirements, $chunkRequirements);
+
+            } catch (\Exception $e) {
+                $this->logger->error("Failed to process chunk {$chunkNumber}", [
+                    'chunk_number' => $chunkNumber,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue with other chunks even if one fails
+            }
+        }
+
+        $this->logger->info('All chunks processed', [
+            'total_chunks' => count($chunks),
+            'total_requirements' => count($allRequirements),
+        ]);
+
+        return $allRequirements;
+    }
+
+    /**
+     * Extract requirements from a single chunk
+     * 
+     * @return SoftwareRequirements[]
+     */
+    private function extractRequirementsFromChunk(
+        string $chunkText,
+        string $projectName,
+        array $options,
+        int $chunkNumber,
+        int $totalChunks
+    ): array {
         // Build extraction prompt
-        $prompt = $this->buildExtractionPrompt($projectName);
+        $prompt = $this->buildExtractionPrompt($projectName, $chunkNumber, $totalChunks);
 
         // Context as JSON format
         $context = [
             'project_name' => $projectName,
-            'document_text' => $documentText,
+            'document_text' => $chunkText,
+            'chunk_info' => [
+                'current' => $chunkNumber,
+                'total' => $totalChunks,
+            ],
         ];
 
         // Ensure very high token limit for complete extraction (model-dependent)
-        // Note: llama3.2 supports up to 128k context, but generation is limited
         $options['max_tokens'] = $options['max_tokens'] ?? 32768;
-
-        $this->logger->info('Starting LLM extraction', [
-            'document_length' => strlen($documentText),
-            'max_tokens' => $options['max_tokens'],
-            'model' => $options['model'] ?? 'default',
-        ]);
 
         // Generate with LLM
         $response = $this->llmService->generate($prompt, $context, $options);
 
-        $this->logger->info('LLM generation completed', [
+        $this->logger->info("LLM generation completed for chunk {$chunkNumber}", [
+            'chunk_number' => $chunkNumber,
             'response_length' => strlen($response['response']),
-            'tokens_used' => $response['eval_count'] ?? 'unknown',
-            'generation_duration_seconds' => isset($response['total_duration']) ? round($response['total_duration'] / 1_000_000_000, 2) : 'unknown',
-            'response_preview' => substr($response['response'], 0, 300),
+            'tokens_used' => $response['total_tokens'] ?? 'unknown',
         ]);
 
         // Parse requirements from response
@@ -161,11 +260,15 @@ class ExtractRequirementsHandler
     /**
      * Build extraction prompt for LLM
      */
-    private function buildExtractionPrompt(string $projectName): string
+    private function buildExtractionPrompt(string $projectName, int $chunkNumber = 1, int $totalChunks = 1): string
     {
+        $chunkInfo = $totalChunks > 1 
+            ? "\n📑 CHUNK INFO: You are processing chunk {$chunkNumber} of {$totalChunks}. Extract ALL requirements from THIS chunk only.\n" 
+            : '';
+
         return <<<PROMPT
 You are a precise requirements extraction tool. Your ONLY task is to extract requirements that are EXPLICITLY stated in the provided document.
-
+{$chunkInfo}
 ⚠️ CRITICAL: DO NOT invent, assume, or add requirements that are not directly mentioned in the document text!
 
 EXTRACTION RULES:

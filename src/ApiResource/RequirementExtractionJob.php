@@ -27,6 +27,17 @@ use Symfony\Component\Validator\Constraints as Assert;
             provider: RequirementExtractionProvider::class,
             security: 'is_granted("ROLE_USER")'
         ),
+        new Get(
+            uriTemplate: '/requirements/jobs/latest',
+            description: 'Get Latest (Most Recent) Requirements Extraction Job',
+            output: \App\DTO\Schema\RequirementExtractionJobOutput::class,
+            provider: RequirementExtractionProvider::class,
+            security: 'is_granted("ROLE_USER")',
+            openapiContext: [
+                'summary' => 'Get latest extraction job',
+                'description' => 'Returns the most recently created extraction job with its current status and results',
+            ]
+        ),
         new GetCollection(
             uriTemplate: '/requirements/jobs',
             description: 'List Requirements Extraction Jobs',
