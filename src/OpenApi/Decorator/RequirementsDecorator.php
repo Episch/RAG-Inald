@@ -420,7 +420,8 @@ final class RequirementsDecorator implements OpenApiFactoryInterface
                             'description' => 'Use a file already present on the server - only for backend/admin use',
                             'value' => [
                                 'projectName' => 'BC NOVA',
-                                'serverPath' => '/home/david/projects/raginald/public/shared/example_Use_Cases_konsolidiert.xlsx',
+                                //'serverPath' => '/home/david/projects/raginald/public/shared/example_Use_Cases_konsolidiert.xlsx',
+                                'serverPath' => __DIR__ . '/../../../public/shared/example_Use_Cases_konsolidiert.xlsx',
                                 'llmModel' => 'llama3.2',
                                 'temperature' => 0.5,
                                 'async' => true

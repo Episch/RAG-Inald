@@ -7,6 +7,7 @@
         "php": ">=8.2",
         "ext-ctype": "*",
         "ext-gd": "*",
+        "ext-redis": "*",
         "ext-iconv": "*",
         "api-platform/core": "^4.1",
         "laudis/neo4j-php-client": "^3.4",

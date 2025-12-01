@@ -14,4 +14,4 @@
 ###< lexik/jwt-authentication-bundle ###
 
 /.vscode/
-/public/shared/
+/public/shared/*
